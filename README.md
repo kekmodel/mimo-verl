@@ -1,5 +1,34 @@
 # XiaomiMiMo/verl
 
+> **이 브랜치(`mimo-fixes`)에 대해**
+>
+> 원본 [XiaomiMiMo/verl](https://github.com/XiaomiMiMo/verl) (`mimo-oss` 브랜치)의 수학적 오류를 고치고, 기본값을 MiMo-V2.6 리포트에 맞춘 버전입니다. Code·General 레시피가 대상입니다.
+>
+> - 변경 목록과 이유: [`docs/mimo-research/FIXES.md`](docs/mimo-research/FIXES.md)
+> - 코드 분석, 리포트 역산 기록: [`docs/mimo-research/`](docs/mimo-research/)
+> - 원본과의 차이: `git diff mimo-oss mimo-fixes`
+>
+> **설치**
+>
+> ```bash
+> git submodule update --init third_party/mimoagent-osr third_party/uni_agent
+> # 선택: uni-agent 패치 (기본값이 꺼진 timeout_as_failure 옵션과 주석뿐이라 학습에는 필요 없음)
+> (cd third_party/uni_agent && git apply ../../patches/uni_agent-mimo-fixes.patch)
+> ```
+>
+> `git submodule update`를 다시 실행하면 서브모듈 수정이 지워지므로, 그 뒤에 패치를 다시 적용해야 합니다. verl 쪽 수정은 이 브랜치에 커밋돼 있어서 따로 패치할 것이 없습니다.
+>
+> **조정할 하이퍼파라미터** (환경 변수)
+>
+> | 변수 | Code | General | 의미 |
+> |---|---|---|---|
+> | `EXEC_BUDGET_SECONDS` | 3000 | 300 | 도구 실행 시간 예산. 넘으면 멈추고 그 상태로 채점. `rollout/exec_budget_hit_rate`가 1% 안팎이 되게 조정 |
+> | `TRAJECTORY_TIMEOUT` | 7200 | 1200 | 벽시계 안전장치(원본 값). 걸리면 infra로 제외되므로 거의 0이어야 함 |
+>
+> 첫 실행에서 확인할 지표: `rollout/exec_budget_hit_rate`, `training/invalid_rows`, General `wall_backstop_hit`, uni-agent `num_failed_sessions`, `rollout_corr/rollout_is_oob_ratio`
+>
+> CPU 테스트만 검증했고 GPU·실제 pod 실행은 아직 검증하지 않았습니다.
+
 Agentic RL training code for MiMo. The detailed training recipe can be found in Section 7 of our report [MiMo-V2.6: Scaling Reinforcement Learning Towards
 Self-Improvement](https://huggingface.co/XiaomiMiMo/MiMo-V2.6-Pro-RL/blob/main/MiMo_V2_6_technical_report.pdf).
 

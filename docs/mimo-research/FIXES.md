@@ -4,7 +4,7 @@
 
 ## 적용
 
-이 브랜치(`mimo-fixes`)에 verl 수정이 커밋돼 있습니다. 서브모듈 uni-agent 수정은 패치로 들어 있습니다.
+이 브랜치(`mimo-fixes`)에 verl 수정이 커밋돼 있습니다. 서브모듈 uni-agent 수정은 패치로 들어 있고, 기본값이 꺼진 `timeout_as_failure` 옵션과 주석뿐이라 학습에는 필요 없습니다(선택).
 
 ```bash
 git submodule update --init third_party/mimoagent-osr third_party/uni_agent
