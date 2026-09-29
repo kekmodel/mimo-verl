@@ -170,8 +170,10 @@ def test_every_touchpoint_in_the_trainer_is_behind_an_environment_gate():
         between = preceding[gate:]
         assert between.count("\n") <= 12, f"{call!r} is no longer directly under its WEBDEV_GRADE_MODE gate"
 
-    # The infra exclusion changes advantages, so it carries its own explicit opt-in.
-    assert 'os.environ.get("DROP_INFRA_FROM_GROUP", "0") == "1"' in src
+    # Invalid (infra/sentinel) rows are always excluded through the valid-mean fill and the
+    # loss mask; the old DROP_INFRA_FROM_GROUP uid reassignment is gone.
+    assert "advantage_fixes.fill_invalid_scores(" in src
+    assert 'os.environ.get("DROP_INFRA_FROM_GROUP"' not in src
 
     # And no other recipe-specific import may be unconditional at module scope.
     module_scope_imports = re.findall(r"^from recipes\..*$", src, re.M)

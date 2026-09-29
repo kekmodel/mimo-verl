@@ -69,7 +69,8 @@ def test_blackbox_training_defaults_match_reference_qwen38_run():
     assert rollout["n"] == 16
     assert rollout["max_model_len"] == 262144
     assert rollout["log_prob_max_token_len_per_gpu"] == 131072
-    assert rollout["custom"]["agent_framework"]["agent_runners"]["mimoagent"]["trajectory_selection"] == "longest"
+    # every trajectory of a session is trained on (GRPO uses the session's final row)
+    assert rollout["custom"]["agent_framework"]["agent_runners"]["mimoagent"]["trajectory_selection"] == "all"
     assert rollout["max_num_seqs"] == 512
     assert "reasoning_effort" not in config["data"]["apply_chat_template_kwargs"]
     assert trainer["test_freq"] == -1
@@ -84,7 +85,17 @@ def test_blackbox_specific_overrides_remain_explicit():
     config = _load_recipe_config()
 
     assert config["actor_rollout_ref"]["actor"]["use_rollout_log_probs"] is True
-    assert config["algorithm"]["rollout_correction"]["bypass_mode"] is False
+    # Report Eq. (1): REINFORCE on rollout log-probs with a [0.2, 5.0] token mask
+    assert config["algorithm"]["rollout_correction"] == {
+        "bypass_mode": True,
+        "loss_type": "reinforce",
+        "rollout_is": "token",
+        "rollout_is_threshold": "0.2_5.0",
+    }
+    assert config["actor_rollout_ref"]["actor"]["policy_loss"] == {
+        "loss_mode": "bypass_mode",
+        "rollout_correction": "${algorithm.rollout_correction}",
+    }
     assert config["transfer_queue"]["enable"] is True
     assert config["actor_rollout_ref"]["rollout"]["custom"]["agent_framework"]["gateway_count"] == 1
 
@@ -101,8 +112,7 @@ def test_blackbox_launcher_prioritizes_current_verl_checkout():
     assert "AGENT_NUM_WORKERS" in launcher
     assert "ROLLOUT_MAX_RUNNING_REQUESTS" in launcher
     assert "actor_rollout_ref.rollout.name=sglang" in launcher
-    assert "agent_runners.mimoagent.trajectory_selection=longest" in launcher
-    assert "agent_runners.mimoagent.trajectory_selection=all" not in launcher
+    assert 'agent_runners.mimoagent.trajectory_selection="${TRAJECTORY_SELECTION:-all}"' in launcher
     assert 'data.train_files="${TRAIN_DATA_HYDRA}"' in launcher
     assert 'data.val_files="${VAL_DATA_HYDRA}"' in launcher
     assert "mamba_scheduler_strategy" in launcher
@@ -153,7 +163,7 @@ def test_resolved_config_validator_rejects_hidden_override(tmp_path):
     from recipes.code import validate_resolved_config
 
     config = {
-        "algorithm": {"rollout_correction": {"bypass_mode": False}},
+        "algorithm": {"rollout_correction": {"bypass_mode": True}},
         "transfer_queue": {"enable": True},
         "trainer": {
             "v1": {"trainer_mode": "sync"},

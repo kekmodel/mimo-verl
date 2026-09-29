@@ -48,7 +48,7 @@ from verl.single_controller.ray import (
     create_colocated_worker_cls,
 )
 from verl.trainer.distillation import is_distillation_enabled
-from verl.trainer.ppo import core_algos
+from verl.trainer.ppo import advantage_fixes, core_algos
 from verl.trainer.ppo.core_algos import agg_loss
 from verl.trainer.ppo.metric_utils import (
     RolloutMoELoadBalanceMetricsAccumulator,
@@ -1924,8 +1924,13 @@ class PPOTrainer(ABC):
         repetition_enabled = bool(repetition_config.get("enable", False))
         repetition_strategy = str(repetition_config.get("strategy", "monitor"))
         repetition_value = float(repetition_config.get("penalty_value", 0.0) or 0.0)
+        # "field": the agent framework ships a ``tool_call_error_mask`` tensor (uni-agent).
+        # "spans": build it from ``llm_turn_spans`` / ``tool_call_error_flags`` metadata (verl AgentLoops).
+        tool_mask_source = str(tool_penalty_config.get("mask_source", "field"))
+        if tool_mask_source not in ("field", "spans"):
+            raise ValueError(f"tool_call_error_penalty.mask_source must be 'field' or 'spans', got {tool_mask_source!r}")
         fields = ["uid", "response_mask", "rm_scores", "rollout_log_probs", "old_log_probs", "ref_log_prob", "values"]
-        if tool_penalty_enabled:
+        if tool_penalty_enabled and tool_mask_source == "field":
             fields.append("tool_call_error_mask")
         if repetition_enabled:
             fields.append("repetition_mask")
@@ -1940,11 +1945,28 @@ class PPOTrainer(ABC):
         data.batch["token_level_scores"] = data.batch["rm_scores"]
         data.non_tensor_batch["uid"] = np.array(data.batch.pop("uid").tolist(), dtype=object)
 
+        # Row metadata (is_infra, length_signals, turn spans). Absent for recipes that ship none.
+        try:
+            _ef = tq.kv_batch_get(keys=batch.keys, partition_id=batch.partition_id, select_fields=["extra_fields"])
+            extra_fields_list = list(_ef["extra_fields"])
+        except Exception as e:  # noqa: BLE001 - metadata is optional; missing it only disables the users below
+            logger.warning("[advantage] extra_fields unavailable: %s", e)
+            extra_fields_list = None
+        session_keys = advantage_fixes.session_keys_from_batch_keys(batch.keys)
+
         error_mask = None
         response_mask_edited = False
         if tool_penalty_enabled:
             response_mask_padded = data.batch["response_mask"]
-            error_mask = data.batch.get("tool_call_error_mask")
+            if tool_mask_source == "spans":
+                if extra_fields_list is None:
+                    raise RuntimeError("tool_call_error_penalty.mask_source=spans requires extra_fields")
+                error_mask, _span_metrics = advantage_fixes.tool_error_hits_from_spans(
+                    extra_fields_list, response_mask_padded
+                )
+                metrics.update(_span_metrics)
+            else:
+                error_mask = data.batch.get("tool_call_error_mask")
             data.batch["response_mask"], error_mask, penalty_metrics = _apply_tool_call_error_strategy(
                 response_mask_padded,
                 error_mask,
@@ -1993,6 +2015,50 @@ class PPOTrainer(ABC):
         else:
             data.batch["token_level_rewards"] = data.batch["token_level_scores"]
 
+        # Rows that are not samples of the policy (infra failures). They are excluded from the
+        # GRPO baseline, the loss, and the prompt-mean normalization below.
+        invalid = advantage_fixes.invalid_rows(
+            extra_fields_list,
+            data.batch["token_level_rewards"].sum(dim=-1),
+            self.config.algorithm.get("invalid_reward_value", None),
+        )
+        metrics["training/invalid_rows"] = float(invalid.sum().item())
+        if extra_fields_list is not None:
+            _hits = [advantage_fixes.exec_budget_hit(ef) for ef in extra_fields_list]
+            metrics["rollout/exec_budget_hit_rate"] = float(np.mean(_hits)) if _hits else 0.0
+
+        _lp_raw = self.config.algorithm.get("length_penalty", None)
+        lp_cfg = advantage_fixes.length_penalty_config(
+            OmegaConf.to_container(_lp_raw, resolve=True) if _lp_raw is not None and not isinstance(_lp_raw, dict) else _lp_raw
+        )
+        if lp_cfg is not None:
+            if self.reference_penalties is not None:
+                raise ValueError("algorithm.length_penalty and algorithm.arvo_penalties both shape length; pick one")
+            try:
+                _nt = tq.kv_batch_get(keys=batch.keys, partition_id=batch.partition_id, select_fields=["num_turns"])
+                num_turns = np.asarray(_nt["num_turns"]).reshape(-1).tolist()
+            except Exception:  # noqa: BLE001 - only the tensor fallback needs it
+                num_turns = None
+            signals = advantage_fixes.session_length_signals(
+                extra_fields_list,
+                data.batch["response_mask"],
+                [int(tag["prompt_len"]) for tag in batch.tags],
+                [int(tag["response_len"]) for tag in batch.tags],
+                num_turns,
+                session_keys,
+            )
+            data.batch["token_level_rewards"], lp_metrics = advantage_fixes.apply_group_length_penalty(
+                data.batch["token_level_rewards"],
+                data.batch["response_mask"],
+                data.non_tensor_batch["uid"],
+                session_keys,
+                invalid,
+                signals,
+                lp_cfg,
+                batch_keys=batch.keys,
+            )
+            metrics.update(lp_metrics)
+
         if self.reference_penalties is not None:
             _ef = tq.kv_batch_get(keys=batch.keys, partition_id=batch.partition_id, select_fields=["extra_fields"])
             _infos = list(_ef["extra_fields"])
@@ -2020,28 +2086,9 @@ class PPOTrainer(ABC):
             data, is_metrics = compute_rollout_correction_and_add_to_batch(data, rollout_corr_config)
             metrics.update(is_metrics)
 
-        if os.environ.get("DROP_INFRA_FROM_GROUP", "0") == "1" or self.reference_penalties is not None:
-            try:
-                _ef = tq.kv_batch_get(keys=batch.keys, partition_id=batch.partition_id, select_fields=["extra_fields"])
-                _is_infra = [float(e.get("is_infra", 0.0)) for e in list(_ef["extra_fields"])]
-                _uid = data.non_tensor_batch["uid"]
-                if len(_is_infra) == len(_uid):
-                    _n_excluded = 0
-                    for _i in range(len(_uid)):
-                        if _is_infra[_i] > 0.5:
-                            _uid[_i] = f"__infra_excluded__{uuid.uuid4()}"
-                            _n_excluded += 1
-                    metrics["training/infra/excluded_from_grpo"] = float(_n_excluded)
-                else:
-                    logger.warning(
-                        "[infra-grpo] length mismatch is_infra=%d uid=%d; skipped",
-                        len(_is_infra),
-                        len(_uid),
-                    )
-            except Exception as e:
-                logger.warning("[infra-grpo] exclusion skipped, GRPO unchanged this step: %s", e)
-
-        # 3. compute advantages
+        # Invalid rows take their group's valid mean so the GRPO baseline is the valid mean.
+        # (Replaces the old DROP_INFRA_FROM_GROUP uid reassignment, which turned every invalid
+        # row into a pseudo-prompt counted by the prompt-mean normalization.)
         group_suffixes = None
         if bool(self.config.algorithm.get("group_advantage_by_harness", False)):
             harness_values = [str(tag.get("agent_type") or "unknown") for tag in batch.tags]
@@ -2050,6 +2097,19 @@ class PPOTrainer(ABC):
                     "algorithm.group_advantage_by_harness=true requires agent_type on every trajectory tag"
                 )
             group_suffixes = np.asarray(harness_values, dtype=object)
+        # GRPO group ids exactly as compute_advantage_for_multi_trajectories forms them.
+        group_ids = data.non_tensor_batch["uid"]
+        if group_suffixes is not None:
+            group_ids = np.asarray([f"{u}::{s}" for u, s in zip(group_ids, group_suffixes, strict=True)], dtype=object)
+        data.batch["token_level_rewards"] = advantage_fixes.fill_invalid_scores(
+            data.batch["token_level_rewards"],
+            data.batch["response_mask"],
+            group_ids,
+            invalid,
+            batch.keys,
+        )
+
+        # 3. compute advantages
         data = compute_advantage_for_multi_trajectories(
             data,
             batch_keys=batch.keys,
@@ -2061,6 +2121,25 @@ class PPOTrainer(ABC):
             config=self.config.algorithm,
             group_suffixes=group_suffixes,
         )
+
+        is_grpo = self.config.algorithm.adv_estimator == core_algos.AdvantageEstimator.GRPO
+        if is_grpo and bool(self.config.algorithm.get("group_size_correction", True)):
+            data.batch["advantages"], gs_metrics = advantage_fixes.group_size_correction(
+                data.batch["advantages"],
+                group_ids,
+                session_keys,
+                invalid,
+                n_ref=int(self.config.actor_rollout_ref.rollout.n),
+            )
+            metrics.update(gs_metrics)
+        data.batch["advantages"], data.batch["response_mask"], _masked = advantage_fixes.mask_invalid_rows(
+            data.batch["advantages"], data.batch["response_mask"], invalid
+        )
+        if _masked:
+            response_mask = response_to_nested(data.batch["response_mask"], response_mask)
+            response_mask_edited = True
+        if "returns" in data.batch:
+            data.batch["returns"] = data.batch["advantages"].clone()
 
         if deep_mask_enabled:
             if (
@@ -2140,11 +2219,17 @@ class PPOTrainer(ABC):
             _ef = tq.kv_batch_get(keys=batch.keys, partition_id=batch.partition_id, select_fields=["extra_fields"])
             _infos = list(_ef["extra_fields"])
             _gen_mask = data.batch["response_mask"].clone()
+            _row_weights = None
+            if self.config.actor_rollout_ref.actor.loss_agg_mode == "prompt-mean":
+                _row_weights = core_algos.compute_prompt_loss_weights(
+                    data.batch["response_mask"], data.non_tensor_batch["uid"]
+                )
             data.batch["advantages"], _tp_metrics = self.reference_penalties.apply_tool_penalty(
                 data.batch["advantages"],
                 data.batch["response_mask"],
                 _gen_mask,
                 _infos,
+                row_weights=_row_weights,
             )
             metrics.update(_tp_metrics)
             if "returns" in data.batch:

@@ -80,9 +80,15 @@ class ToolCallErrorPenaltyConfig(BaseConfig):
     enable: bool = False
     strategy: str = "monitor"
     penalty_value: float = 0.0
+    # "field": the agent framework ships a ``tool_call_error_mask`` tensor (uni-agent / code).
+    # "spans": the trainer builds it from ``llm_turn_spans`` + ``tool_call_error_flags`` in
+    # ``extra_fields`` (verl AgentLoops such as general / arvo).
+    mask_source: str = "field"
 
     def __post_init__(self):
         _validate_marked_token_penalty("tool_call_error_penalty", self.strategy, self.penalty_value)
+        if self.mask_source not in ("field", "spans"):
+            raise ValueError(f"tool_call_error_penalty.mask_source must be 'field' or 'spans', got {self.mask_source!r}")
 
 
 MARKED_TOKEN_PENALTY_STRATEGIES = frozenset({"monitor", "mask", "adv_reduction", "adv_set", "adv_signed"})
@@ -785,3 +791,10 @@ class AlgoConfig(BaseConfig):
     gdpo_reward_keys: Optional[list[str]] = None
     gdpo_reward_weights: Optional[list[float]] = None
     invalid_reward_value: Optional[float] = None
+    # Rescale each GRPO group by (1 - 1/n) / (1 - 1/n_valid) so groups that lost rows to
+    # infra failures or dropped sessions keep the same expected-gradient factor as full groups
+    # (GRPO's mean baseline includes the row itself). Identity for full groups.
+    group_size_correction: bool = True
+    # Group-relative length penalty (report Eq. 4) applied to raw outcome scores before GRPO.
+    # Same fields as verl.utils.length_penalty.LengthPenaltyConfig; None disables.
+    length_penalty: Optional[dict[str, Any]] = None

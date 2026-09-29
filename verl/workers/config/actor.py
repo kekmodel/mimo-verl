@@ -223,8 +223,13 @@ class ActorConfig(BaseConfig):
         ]
         if self.loss_agg_mode not in valid_loss_agg_modes:
             raise ValueError(f"Invalid loss_agg_mode: {self.loss_agg_mode}")
-        if self.loss_agg_mode == "prompt-mean" and self.policy_loss.get("loss_mode", "vanilla") != "vanilla":
-            raise ValueError("prompt-mean currently requires the vanilla PPO policy loss")
+        # prompt-mean needs a policy loss that forwards global_batch_info (prompt_loss_weights) to
+        # agg_loss: vanilla, and bypass_mode (its reinforce and ppo_clip branches both do).
+        if self.loss_agg_mode == "prompt-mean" and self.policy_loss.get("loss_mode", "vanilla") not in (
+            "vanilla",
+            "bypass_mode",
+        ):
+            raise ValueError("prompt-mean currently requires the vanilla or bypass_mode policy loss")
 
     def validate(self, n_gpus: int, train_batch_size: int, model_config: dict = None):
         """Validate actor configuration with runtime parameters."""

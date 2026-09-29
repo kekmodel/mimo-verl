@@ -67,7 +67,13 @@ def main() -> None:
         raise ValueError("resolved config must be a mapping")
 
     expected = {
-        "algorithm.rollout_correction.bypass_mode": False,
+        # Report Eq. (1): REINFORCE on rollout log-probs with a [0.2, 5.0] token mask.
+        "algorithm.rollout_correction.bypass_mode": True,
+        "algorithm.rollout_correction.loss_type": "reinforce",
+        "algorithm.rollout_correction.rollout_is": "token",
+        "algorithm.rollout_correction.rollout_is_threshold": "0.2_5.0",
+        "actor_rollout_ref.actor.policy_loss.loss_mode": "bypass_mode",
+        "actor_rollout_ref.rollout.calculate_log_probs": True,
         "transfer_queue.enable": True,
         "trainer.v1.trainer_mode": "colocate_async",
         "trainer.save_freq": args.save_freq,

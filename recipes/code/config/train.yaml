@@ -78,9 +78,29 @@ actor_rollout_ref:
             runner_fqn: recipes.code.mimoagent_runner.mimoagent_runner
             dispatch_mode: ray_task
             max_concurrent_sessions: 8
-            trajectory_selection: longest
+            # all: train every context of a session (sub-agents, compaction). "longest" drops the
+            # other contexts' gradient terms although their actions share the session reward.
+            trajectory_selection: all
+            # Budgets the policy is responsible for, each graded at its limit: tokens
+            # (rollout.response_length), steps, and tool-execution time
+            # (runner_kwargs.exec_budget_seconds: summed duration of the pod commands the agent
+            # ran). At the tool budget the rollout is frozen, the running command ends under its
+            # own pod timeout, and the final state is graded. Wall clock is not a policy budget:
+            # it also counts training pauses (colocated rollout stops while the trainer updates),
+            # inference queueing and sandbox speed.
+            # session_timeout_seconds is only a backstop for a hung runner; it counts those pauses
+            # too, so keep it above the longest healthy rollout (upstream 7200s). With the
+            # `wait` staleness strategy it is also the worst-case trainer stall, so do not inflate
+            # it. A session it kills is dropped as infra; watch that this stays near zero.
+            # agent_request_idle_timeout_seconds fires only when one tool call stalls with no model
+            # request in flight (not during training pauses); it must exceed the largest tool
+            # timeout (bash 600s + 5s).
+            # Sizing: exec budget + one command overshoot (bash max 600s) = half the backstop,
+            # leaving the other half for generation, queueing and training pauses.
+            runner_kwargs:
+              exec_budget_seconds: ${oc.env:EXEC_BUDGET_SECONDS,3000}
             session_timeout_seconds: ${oc.env:TRAJECTORY_TIMEOUT,7200}
-            agent_request_idle_timeout_seconds: ${oc.env:AGENT_REQUEST_IDLE_TIMEOUT,720}
+            agent_request_idle_timeout_seconds: ${oc.env:AGENT_REQUEST_IDLE_TIMEOUT,900}
             trajectory_timeout_by_dataset: {}
 
   actor:
@@ -95,6 +115,10 @@ actor_rollout_ref:
     clip_ratio_high: 0.2
     clip_ratio_c: 3.0
     loss_agg_mode: prompt-mean
+    # Eq. (1) loss; the rollout_correction settings live under algorithm.
+    policy_loss:
+      loss_mode: bypass_mode
+      rollout_correction: ${algorithm.rollout_correction}
     entropy_coeff: 0
     entropy_from_logits_with_chunking: true
     entropy_from_logits_chunk_size: 16384
@@ -162,9 +186,10 @@ algorithm:
     metric: reward
     max_inflight_gen_batches: 2
   tool_call_error_penalty:
-    enable: false
-    strategy: monitor
-    penalty_value: 0.0
+    enable: true
+    strategy: adv_signed
+    penalty_value: 2.0
+    mask_source: field
   repetition_penalty:
     enable: false
     strategy: monitor
@@ -175,8 +200,33 @@ algorithm:
     alpha: 1.0
   signed_min_scale: 0.5
   signed_max_scale: 2.0
+  # Group-relative length penalty, report Eq. 4, values from recipes/arvo/REFERENCE_PENALTIES.json.
+  # Only successful rollouts of groups with pass rate > min_pass_rate are shaped; excess is the
+  # worst of turns / input tokens (prompt + tool output) / output tokens over the group's p30.
+  length_penalty:
+    enable: true
+    max_penalty: 0.2
+    excess_threshold: 0.0
+    excess_saturate: 1.0
+    penalty_exponent: 1.5
+    metrics: [turns, input_tokens, output_tokens]
+    combine: max
+    pass_threshold: 0.5
+    anchor_quantile: 0.3
+    min_pass_rate: 0.5
+
+  # Rescale GRPO groups that lost rows (infra, dropped sessions) to the full-group factor.
+  group_size_correction: true
+  # Report Eq. (1): L = -sum_t sg[pi/mu] * M * A * log pi, with mu the rollout engine's
+  # per-token probability (not recomputed, also across partial-rollout weight updates) and
+  # M = 0 outside [0.2, 5.0] (IcePop-style mask; masked tokens stay in the normalizer).
+  # The report splits the bounds by advantage sign and tunes them from policy entropy, but
+  # both start at [0.2, 5.0] and the tuning rule is not published, so they stay fixed here.
   rollout_correction:
-    bypass_mode: false
+    bypass_mode: true
+    loss_type: reinforce
+    rollout_is: token
+    rollout_is_threshold: "0.2_5.0"
 
 reward:
   custom_reward_function:
@@ -208,8 +258,11 @@ trainer:
     colocate_async:
       num_warmup_batches: 1
     sampler:
-      max_off_policy_threshold: 2
-      max_off_policy_strategy: drop
+      max_off_policy_threshold: 4
+      # wait: block the next update until rollouts about to exceed the threshold finish.
+      # drop would discard exactly the long rollouts (those spanning many policy versions) --
+      # a length-dependent censoring of the training signal.
+      max_off_policy_strategy: wait
 
 transfer_queue:
   enable: true

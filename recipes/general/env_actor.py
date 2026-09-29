@@ -33,6 +33,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 import traceback
 from pathlib import Path
 from typing import Any
@@ -82,6 +83,7 @@ class DatasetEnvActor:
         instance_id: str,
         mimoagent_config_path: str,
         dump_dir: str | None = None,
+        exec_budget_seconds: float | None = None,
     ):
         self.instance = instance
         self.instance_id = instance_id
@@ -97,6 +99,15 @@ class DatasetEnvActor:
         self.dataset_env = None
         self._infra_error: str | None = None
         self._cleanup_failures = 0
+        # Tool-execution budget: the summed duration of the agent's tool calls -- the time the
+        # policy is responsible for (wall clock would also count inference queueing and sandbox
+        # speed). Once used up the actor freezes: no further tool call reaches the pod, the call
+        # that crossed it has already returned, so grading never races the agent.
+        self._exec_budget = float(exec_budget_seconds) if exec_budget_seconds else None
+        self._exec_used = 0.0
+        self._budget_hit = False
+        self._frozen = False
+        self._inflight = 0
 
         self._reward_binarize = str(os.environ.get("REWARD_BINARIZE", "")).strip().lower() in {"1", "true", "yes", "on"}
         try:
@@ -288,14 +299,63 @@ class DatasetEnvActor:
                 return {"kind": KIND_UNEXPECTED, "message": f"Unexpected error executing tool '{name}': {e}"}
             return {"kind": KIND_OK, "result": result.to_dict()}
 
+    def _gate(self) -> str | None:
+        """Why the next tool call must not run, or None."""
+        if self._exec_budget is not None and self._exec_used >= self._exec_budget:
+            self._budget_hit = True
+            self._frozen = True
+        if self._frozen:
+            return "tool-execution budget used up" if self._budget_hit else "rollout stopped"
+        return None
+
+    async def _timed(self, fn):
+        self._inflight += 1
+        t0 = time.monotonic()
+        try:
+            return await asyncio.to_thread(fn)
+        finally:
+            self._exec_used += time.monotonic() - t0
+            self._inflight -= 1
+
     async def execute_tool(self, name: str, params: dict[str, Any]) -> dict[str, Any]:
         assert self.dataset_env is not None, "execute_tool() before setup()"
-        return await asyncio.to_thread(self._execute_tool_sync, name, params)
+        reason = self._gate()
+        if reason is not None:
+            return {"kind": KIND_LIMITS_EXCEEDED, "message": reason}
+        return await self._timed(lambda: self._execute_tool_sync(name, params))
 
     async def execute(self, command: str, **kwargs) -> dict[str, Any]:
-        """Raw pod exec. Not used by the rollout; kept for debugging / smoke scripts."""
+        """Raw pod exec for the agent side (MCP discovery) and smoke scripts."""
         assert self.dataset_env is not None, "execute() before setup()"
-        return await asyncio.to_thread(lambda: self.dataset_env.env.execute(command, **kwargs))
+        reason = self._gate()
+        if reason is not None:
+            return {"output": reason, "returncode": 1, "reason": "budget_exhausted"}
+        return await self._timed(lambda: self.dataset_env.env.execute(command, **kwargs))
+
+    def budget_state(self) -> dict[str, Any]:
+        return {"hit": self._budget_hit, "exec_seconds_used": self._exec_used}
+
+    async def freeze(self, grace_seconds: float) -> bool:
+        """Refuse further tool calls and wait up to ``grace_seconds`` for in-flight ones.
+
+        Every pod command runs under ``timeout N`` (bash tool max 600s). Returns whether all
+        in-flight calls returned.
+        """
+        self._frozen = True
+        deadline = asyncio.get_running_loop().time() + grace_seconds
+        while self._inflight > 0 and asyncio.get_running_loop().time() < deadline:
+            await asyncio.sleep(0.5)
+        return self._inflight == 0
+
+    async def alive(self, timeout: int = 30) -> bool:
+        """Liveness probe of the pod, bypassing the freeze."""
+        if self.dataset_env is None or self._infra_error:
+            return False
+        try:
+            res = await asyncio.to_thread(lambda: self.dataset_env.env.execute("true", timeout=timeout))
+        except Exception:  # noqa: BLE001 - any failure to reach the pod means it is not alive
+            return False
+        return res.get("returncode") == 0 or res.get("reason") == "budget_exhausted"
 
 
     async def calculate_reward(self, timeout: float | None = None, final_message: str = "") -> tuple[float, str, dict]:

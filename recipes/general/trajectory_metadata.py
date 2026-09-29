@@ -11,11 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Token and turn metadata for the ARVO trajectory bridge.
+"""Token and turn metadata for the general trajectory bridge.
 
-These are observations recorded per rollout, consumed by
-``ReferencePenalties.shape_scores`` and ``tool_error_hits`` when
-``algorithm.arvo_penalties.enable=true``.
+These are observations recorded per rollout, consumed by the trainer's
+``algorithm.length_penalty`` (``length_signals``) and
+``algorithm.tool_call_error_penalty.mask_source=spans`` (turn spans + error flags).
 """
 
 

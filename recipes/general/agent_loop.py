@@ -207,6 +207,7 @@ class _VerlRolloutModel:
         self.n_calls = 0
         self.n_prompt_tokens = 0
         self.n_generated_tokens = 0
+        self.llm_turn_spans: list[tuple[int, int]] = []
 
 
     def query(self, messages: list[dict[str, Any]], **kwargs) -> dict[str, Any]:
@@ -267,7 +268,9 @@ class _VerlRolloutModel:
         elif output.num_preempted is not None:
             self._metrics["num_preempted"] += output.num_preempted
 
+        turn_start = len(self._trace.response_mask)
         self._trace.append_generated(output.token_ids, output.log_probs)
+        self.llm_turn_spans.append((turn_start, len(self._trace.response_mask)))
         self.n_calls += 1
         self.n_generated_tokens += len(output.token_ids)
         self._absorb_engine_extra_fields(output.extra_fields)
@@ -443,6 +446,7 @@ class GeneralAgentLoop(AgentLoopBase):
         fail_on_env_setup_error: bool = False,
         invalid_reward_for_infra: bool = False,
         trajectory_timeout: float = 1800.0,
+        exec_budget_seconds: float | None = 300.0,
         env_num_cpus: float = 1,
         env_scheduling_strategy: str = "SPREAD",
         agent_thread_pool_size: int = 64,
@@ -477,6 +481,12 @@ class GeneralAgentLoop(AgentLoopBase):
         self.fail_on_env_setup_error = _as_bool(fail_on_env_setup_error)
         self.invalid_reward_for_infra = _as_bool(invalid_reward_for_infra)
         self.trajectory_timeout = float(trajectory_timeout)
+        # Budgets the policy is responsible for, graded at their limit: tokens (response_length)
+        # and tool-execution time (``exec_budget_seconds``, summed duration of the agent's tool
+        # calls, enforced by the env actor). ``trajectory_timeout`` is wall clock -- it also
+        # counts inference queueing and sandbox speed -- so it is only a backstop for a hung
+        # rollout, set far above what the budgets allow; a rollout it stops is dropped as infra.
+        self.exec_budget_seconds = float(exec_budget_seconds) if exec_budget_seconds else None
         self._env_setup_timeout_or_none = self.env_setup_timeout if self.env_setup_timeout > 0 else None
         self._trajectory_timeout_or_none = self.trajectory_timeout if self.trajectory_timeout > 0 else None
         self.max_tool_calls_per_turn = int(max_tool_calls_per_turn) if max_tool_calls_per_turn else None
@@ -707,6 +717,20 @@ class GeneralAgentLoop(AgentLoopBase):
         }
         if error_category is not None:
             extra["error_category"] = error_category
+        # A failure output carries one placeholder token, not a policy sample: mark it invalid so
+        # the trainer drops it from the GRPO baseline, the loss and the prompt-mean normalization,
+        # whatever ``invalid_reward_for_infra`` says about the score.
+        extra["is_infra"] = 1.0
+        extra["llm_turn_spans"] = []
+        extra["tool_call_error_flags"] = []
+        extra["length_signals"] = {
+            "prompt_length": 0,
+            "response_length": 0,
+            "decode_length": 0,
+            "tool_length": 0,
+            "prefill_length": 0,
+            "turn_count": 0,
+        }
         for key in ("min_global_steps", "max_global_steps"):
             value = (engine_extra_fields or {}).get(key)
             if value is None:
@@ -819,6 +843,7 @@ class GeneralAgentLoop(AgentLoopBase):
             instance_id=instance_id,
             mimoagent_config_path=self.mimoagent_config_path,
             dump_dir=dump_dir,
+            exec_budget_seconds=self.exec_budget_seconds,
         )
 
         model: _VerlRolloutModel | None = None
@@ -891,25 +916,44 @@ class GeneralAgentLoop(AgentLoopBase):
             )
 
             task = instance.get("problem_statement") or ""
+            agent_future = self.loop.run_in_executor(
+                _agent_pool(self.agent_thread_pool_size),
+                lambda: agent.run(task=task),
+            )
             try:
                 exit_status, exit_message = await asyncio.wait_for(
-                    self.loop.run_in_executor(
-                        _agent_pool(self.agent_thread_pool_size),
-                        lambda: agent.run(task=task),
-                    ),
+                    asyncio.shield(agent_future),
                     timeout=self._trajectory_timeout_or_none,
                 )
             except TimeoutError:
+                # Wall-clock backstop: the policy budgets (tokens, tool time) did not bind, so the
+                # time went to queueing / a hung sandbox. Stop everything and drop it as infra.
                 logger.warning(
-                    "[agent] %s: trajectory timed out after %.0fs",
+                    "[agent] %s: wall-clock backstop %.0fs reached; dropping as infra",
                     instance_id,
                     self.trajectory_timeout,
                 )
+                model.stopped = True
+                await env_actor.freeze.remote(0.0)
+                metrics["wall_backstop_hit"] = 1.0
                 return self._failure_output(
                     "trajectory_timeout",
-                    "agent trajectory timed out",
+                    "wall-clock backstop reached",
                     metrics,
                     error_category="rollout/seq_timeout",
+                    global_steps=current_global_steps,
+                    engine_extra_fields=engine_extra_fields,
+                )
+            budget = await env_actor.budget_state.remote()
+            metrics["exec_budget_hit"] = float(bool(budget["hit"]))
+            metrics["exec_seconds_used"] = float(budget["exec_seconds_used"])
+            if budget["hit"] and not await env_actor.alive.remote():
+                # The pod died, not the policy's rollout: infra, excluded from training.
+                return self._failure_output(
+                    "exec_budget",
+                    "pod not alive after the tool-execution budget",
+                    metrics,
+                    error_category="rollout/pod_conn_timeout",
                     global_steps=current_global_steps,
                     engine_extra_fields=engine_extra_fields,
                 )
@@ -1060,6 +1104,20 @@ class GeneralAgentLoop(AgentLoopBase):
                 "tool_rewards": [],
             }
         )
+        error_category = reward_extra.get("error_category")
+        extra_fields["is_infra"] = 1.0 if error_category in _INFRA_ERROR_CATEGORIES else 0.0
+        extra_fields["exec_budget_hit"] = float(metrics.get("exec_budget_hit", 0.0))
+
+        from .trajectory_metadata import trajectory_metadata
+
+        _traj_meta = trajectory_metadata(
+            prompt_ids,
+            response_mask,
+            model.llm_turn_spans,
+            list(getattr(agent, "tool_call_errors", []) or []),
+        )
+        for key in ("llm_turn_spans", "tool_call_error_flags", "length_signals"):
+            extra_fields[key] = _traj_meta[key]
 
         return AgentLoopOutput(
             prompt_ids=prompt_ids,

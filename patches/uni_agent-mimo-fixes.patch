@@ -1,0 +1,131 @@
+diff --git a/uni_agent/framework/framework.py b/uni_agent/framework/framework.py
+index 8c200d5..0d607f6 100644
+--- a/uni_agent/framework/framework.py
++++ b/uni_agent/framework/framework.py
+@@ -639,6 +639,7 @@ class OpenAICompatibleAgentFramework(AgentFramework):
+         mask_unfinished_episode: bool = False,
+         repetition_detect: dict[str, object] | None = None,
+         ship_turn_index: bool = False,
++        timeout_as_failure: bool = False,
+     ):
+         self.gateway_manager = gateway_manager
+         self.runner_registry = runner_registry
+@@ -659,6 +660,14 @@ class OpenAICompatibleAgentFramework(AgentFramework):
+         self._mask_unfinished_episode = mask_unfinished_episode
+         self._repetition_detect = _normalize_repetition_detect_config(repetition_detect)
+         self._ship_turn_index = ship_turn_index
++        # Framework session limits are wall clock (they also count training pauses and queueing)
++        # and so only a backstop. The policy's time budget (tool-execution time) belongs in the
++        # runner, which freezes the rollout and grades its final state (recipes/code
++        # mimoagent_runner._ExecBudget); a session the framework still has to kill is a hung
++        # runner or sandbox and is dropped like any other infra failure (counted in
++        # num_failed_sessions). Set this True only for runners without their own budget: the
++        # partial trajectory is then kept and scored 0 (sandbox is gone, so it cannot be graded).
++        self._timeout_as_failure = timeout_as_failure
+ 
+     @classmethod
+     def from_config(
+@@ -700,6 +709,10 @@ class OpenAICompatibleAgentFramework(AgentFramework):
+         if type(ship_turn_index) is not bool:
+             raise ValueError("actor_rollout_ref.rollout.custom.agent_framework.ship_turn_index must be a bool")
+ 
++        timeout_as_failure = af_cfg.get("timeout_as_failure", False)
++        if type(timeout_as_failure) is not bool:
++            raise ValueError("actor_rollout_ref.rollout.custom.agent_framework.timeout_as_failure must be a bool")
++
+         return cls(
+             gateway_manager=gateway_manager,
+             runner_registry=runner_registry,
+@@ -711,6 +724,7 @@ class OpenAICompatibleAgentFramework(AgentFramework):
+             mask_unfinished_episode=mask_unfinished_episode,
+             repetition_detect=repetition_detect,
+             ship_turn_index=ship_turn_index,
++            timeout_as_failure=timeout_as_failure,
+         )
+ 
+     def _build_session_sampling_params(
+@@ -1101,6 +1115,23 @@ class OpenAICompatibleAgentFramework(AgentFramework):
+                     except Exception:
+                         logger.exception("session %s: abort snapshot failed", session_id)
+                 failure_info = _framework_failure_metadata(exc)
++                if (
++                    self._timeout_as_failure
++                    and isinstance(exc, asyncio.TimeoutError)
++                    and not isinstance(exc, asyncio.CancelledError)
++                    and partial_trajectories
++                ):
++                    return await self._timeout_trajectories(
++                        session_id=session_id,
++                        partial_trajectories=partial_trajectories,
++                        failure_info=failure_info,
++                        runner_config=runner_config,
++                        sample_fields=sample_fields,
++                        sample_index=sample_index,
++                        session_index=session_index,
++                        runner_name=runner_name,
++                        run_dir=run_dir,
++                    )
+                 failed = [replace(traj, reward_info=dict(failure_info)) for traj in partial_trajectories]
+                 if run_dir is not None:
+                     if failed:
+@@ -1188,6 +1219,60 @@ class OpenAICompatibleAgentFramework(AgentFramework):
+                 )
+             return result_trajectories, sample_fields
+ 
++    async def _timeout_trajectories(
++        self,
++        *,
++        session_id: str,
++        partial_trajectories: list[Trajectory],
++        failure_info: dict[str, object],
++        runner_config: _RunnerConfig,
++        sample_fields: dict[str, object],
++        sample_index: int,
++        session_index: int,
++        runner_name: str,
++        run_dir,
++    ) -> tuple[list[Trajectory], dict[str, object]]:
++        """Keep a timed-out session's captured trajectory as a scored-0 failure.
++
++        ``Session.abort`` says its snapshot must not be scored or enqueued. It is built by the
++        same ``_materialize_active_chains`` as ``finalize`` (identical fields: tokens, logprobs,
++        routed experts, weight-version span); what it lacks is a runner-posted reward, which
++        this method supplies (0). Completed generations are kept; a request in flight at the
++        abort is not part of the snapshot.
++        """
++        selected = _select_session_trajectories(session_id, partial_trajectories, runner_config.trajectory_selection)
++        info = {**failure_info, "reward": 0.0, "gradable": True, "timeout_as_failure": True}
++        result = [
++            replace(
++                traj,
++                reward_info=dict(info),
++                reward_score=0.0,
++                extra_fields={**traj.extra_fields, "reward_extra_info": {"timeout_as_failure": 1.0}},
++            )
++            for traj in selected
++        ]
++        result = self._annotate_repetition(session_id, result)
++        logger.warning(
++            "session %s timed out (%s); keeping %d partial trajectory(ies) scored 0",
++            session_id,
++            failure_info.get("termination_kind"),
++            len(result),
++        )
++        if run_dir is not None:
++            await asyncio.to_thread(self._dump_trajectories, run_dir, session_id, result)
++            await asyncio.to_thread(
++                self._dump_session_manifest,
++                run_dir,
++                session_id,
++                sample_fields,
++                sample_index,
++                session_index,
++                runner_name,
++                result,
++                failure_info,
++            )
++        return result, sample_fields
++
+     async def _wait_for_runner_task(
+         self,
+         object_ref,

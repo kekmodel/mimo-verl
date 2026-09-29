@@ -25,6 +25,8 @@ import hashlib
 import logging
 import os
 import sys
+import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -40,6 +42,63 @@ logger = logging.getLogger(__name__)
 
 _MODEL_BACKED_AGENT_TYPES = {"default", "bashonly-agent", "mimocode-agent", "cc-agent", "codex-agent"}
 _UNGRADABLE_AGENT_STATUSES = {"InfraError"}
+
+
+class _ExecBudget:
+    """Tool-execution-time budget for a model-backed agent, enforced inside the runner.
+
+    The budget counts only the time the pod spends running the commands the agent chose --
+    time the policy is responsible for. Wall clock would also count training pauses (colocated
+    rollout stops while the trainer updates), inference queueing and sandbox slowness, and
+    charge them to the policy. Generation is bounded separately by the token budget.
+
+    Once the budget is used up, the next model query and the next pod command raise
+    ``LimitsExceeded``, which ends ``agent.run`` like a step limit. The command that crossed the
+    budget finishes first (under its own pod ``timeout N``), so ``agent.run`` returns only after
+    it and grading never races the agent. The rollout is then graded on the state it left.
+    """
+
+    def __init__(self, seconds: float):
+        self.seconds = float(seconds)
+        self.used = 0.0
+        self.hit = False
+        self._lock = threading.Lock()
+
+    def _check(self) -> None:
+        with self._lock:
+            if self.used >= self.seconds:
+                self.hit = True
+        if self.hit:
+            from mimoagent.agents.base import LimitsExceeded
+
+            raise LimitsExceeded(f"tool-execution budget of {self.seconds:.0f}s used up")
+
+    def install(self, model, env) -> None:
+        query, execute = model.query, env.execute
+
+        def gated_query(*args, **kwargs):
+            self._check()
+            return query(*args, **kwargs)
+
+        def gated_execute(*args, **kwargs):
+            self._check()
+            t0 = time.monotonic()
+            try:
+                return execute(*args, **kwargs)
+            finally:
+                with self._lock:
+                    self.used += time.monotonic() - t0
+
+        model.query = gated_query
+        env.execute = gated_execute
+        self._ungated_execute = execute
+
+    def env_alive(self, timeout: int = 30) -> bool:
+        try:
+            res = self._ungated_execute("true", timeout=timeout)
+        except Exception:  # noqa: BLE001 - any failure to reach the pod means it is not alive
+            return False
+        return res.get("returncode") == 0 or res.get("reason") == "budget_exhausted"
 
 
 @dataclass
@@ -249,6 +308,7 @@ def _run_sync(
     config: dict[str, Any],
     agent_overrides: dict[str, Any],
     environment_overrides: dict[str, Any],
+    exec_budget_seconds: float | None = None,
 ) -> dict[str, Any]:
     _prepare_swebench_import_path()
     from mimoagent.agents.factory import get_agent_class
@@ -265,6 +325,10 @@ def _run_sync(
         model = _build_model(config, session.base_url or "", agent_type=agent_type)
         _apply_agent_model_override(agent_type, agent_config, model)
         agent_cls = get_agent_class(agent_type)
+        # Blackbox harnesses (claude code, codex, ...) run as one pod command that also contains
+        # their model calls, so their time cannot be split into tool vs. generation time; they
+        # keep their own ``run_timeout`` and are meant for held-out evaluation, not training.
+        budget = _ExecBudget(exec_budget_seconds) if exec_budget_seconds and agent_type in _MODEL_BACKED_AGENT_TYPES else None
         msg_path = _session_agent_msg_path(session)
         if msg_path is not None:
             agent_config["msg_path"] = msg_path
@@ -275,7 +339,13 @@ def _run_sync(
                 raise ValueError("prompt_prefix must be a string when configured")
             task = f"{prompt_prefix.rstrip()}\n\n--- Task ---\n{task}"
         agent = agent_cls(model, environment.env, **agent_config)
+        if budget is not None:
+            budget.install(model, environment.env)
         status, result = agent.run(task)
+        exec_budget_hit = budget is not None and budget.hit
+        if exec_budget_hit and not budget.env_alive():
+            # The pod died, not the policy's rollout: an infra fault, excluded from training.
+            raise RuntimeError(f"{agent_type} rollout used its tool-execution budget and the pod is not alive")
         agent_completed = status == agent_cls.IDLE_STATUS
         if status in _UNGRADABLE_AGENT_STATUSES:
             raise RuntimeError(f"{agent_type} rollout failed with status={status}: {str(result)[-500:]}")
@@ -288,7 +358,9 @@ def _run_sync(
             "agent_type": agent_type,
             "agent_status": status,
             "agent_completed": agent_completed,
-            "termination_kind": "completed" if agent_completed else "truncated",
+            "termination_kind": "completed" if agent_completed else ("exec_budget" if exec_budget_hit else "truncated"),
+            "exec_budget_hit": bool(exec_budget_hit),
+            "exec_seconds_used": float(budget.used) if budget is not None else None,
             "result": result[-5000:] if isinstance(result, str) else str(result),
             "test_output": test_output[-5000:] if isinstance(test_output, str) else str(test_output),
         }
@@ -385,6 +457,7 @@ async def mimoagent_runner(
     config = _load_config(config_path)
     agent_overrides = dict(runner_kwargs.pop("agent_overrides", {}) or {})
     environment_overrides = dict(runner_kwargs.pop("environment_overrides", {}) or {})
+    exec_budget_seconds = runner_kwargs.pop("exec_budget_seconds", None)
     reward_info = await asyncio.to_thread(
         _run_sync,
         raw_prompt=raw_prompt,
@@ -393,6 +466,7 @@ async def mimoagent_runner(
         config=config,
         agent_overrides=agent_overrides,
         environment_overrides=environment_overrides,
+        exec_budget_seconds=float(exec_budget_seconds) if exec_budget_seconds else None,
     )
     reward_info["selected_harness"] = selected_harness
     reward_info["tag_data_source_with_harness"] = os.getenv("MIXED_HARNESS_MODE", "prompt").strip().lower() in {

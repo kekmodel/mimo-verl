@@ -133,7 +133,8 @@ RAY_ENV=(
   +ray_kwargs.ray_init.runtime_env.env_vars.REWARD_BINARIZE="\"${REWARD_BINARIZE}\""
   +ray_kwargs.ray_init.runtime_env.env_vars.REWARD_BINARIZE_THRESHOLD="\"${REWARD_BINARIZE_THRESHOLD}\""
   +ray_kwargs.ray_init.runtime_env.env_vars.MIMOAGENT_BASH_MAX_TIMEOUT_MS="\"${MIMOAGENT_BASH_MAX_TIMEOUT_MS}\""
-  +ray_kwargs.ray_init.runtime_env.env_vars.TRAJECTORY_TIMEOUT="\"${TRAJECTORY_TIMEOUT}\""
+  +ray_kwargs.ray_init.runtime_env.env_vars.TRAJECTORY_TIMEOUT="\"${TRAJECTORY_TIMEOUT:-1200}\""
+  +ray_kwargs.ray_init.runtime_env.env_vars.EXEC_BUDGET_SECONDS="\"${EXEC_BUDGET_SECONDS:-300}\""
   +ray_kwargs.ray_init.runtime_env.env_vars.ENV_SETUP_TIMEOUT="\"${ENV_SETUP_TIMEOUT}\""
   +ray_kwargs.ray_init.runtime_env.env_vars.REWARD_TIMEOUT="\"${REWARD_TIMEOUT}\""
   +ray_kwargs.ray_init.runtime_env.env_vars.ENV_NUM_CPUS="\"${ENV_NUM_CPUS}\""
@@ -155,6 +156,8 @@ if [ "${GENERAL_MODE}" = "eval" ]; then
     actor_rollout_ref.rollout.val_kwargs.n="${VAL_KWARGS_N}"
   )
 fi
+
+LENGTH_PENALTY_ENABLE="${LENGTH_PENALTY_ENABLE:-True}"
 
 MAIN_CMD=(
   python3 -m verl.trainer.main_ppo

@@ -149,8 +149,8 @@ class ReferencePenalties:
             raise ValueError("Tool-error metadata must align with the training rows")
         hit = torch.zeros_like(generation_mask, dtype=torch.float32)
         for row, info in enumerate(infos):
-            if float(info.get("is_infra", 0.0)) > 0.5:
-                continue
+            if float(info.get("is_infra", 0.0)) > 0.5 or not bool(generation_mask[row].any()):
+                continue  # invalid rows: loss mask already zeroed by the trainer
             if "llm_turn_spans" not in info or "tool_call_error_flags" not in info:
                 raise ValueError("Tool-error penalty requires explicit model-turn spans and native error flags")
             spans, errors = info["llm_turn_spans"], info["tool_call_error_flags"]
@@ -161,8 +161,10 @@ class ReferencePenalties:
             coverage = torch.zeros_like(generation_mask[row], dtype=torch.bool)
             previous_end = 0
             for (start, end), error in zip(spans, errors, strict=True):
-                if not (0 <= previous_end <= start <= end <= generation_mask.shape[1]):
-                    raise ValueError("Model-turn spans overlap or exceed the response bounds")
+                if not (0 <= previous_end <= start <= end):
+                    raise ValueError("Model-turn spans overlap or run backwards")
+                end = min(end, generation_mask.shape[1])
+                start = min(start, end)
                 coverage[start:end] = True
                 if error:
                     hit[row, start:end] = self.kappa
@@ -171,20 +173,22 @@ class ReferencePenalties:
                 raise ValueError("Model-turn spans must cover exactly the generated assistant tokens")
         return hit
 
-    def apply_tool_penalty(self, advantages, response_mask, generation_mask, infos):
-        """Apply the batch-wide signed operator after GRPO."""
+    def apply_tool_penalty(self, advantages, response_mask, generation_mask, infos, row_weights=None):
+        """Apply the batch-wide signed operator after GRPO.
+
+        Invalid (infra) rows are already excluded by the trainer, which zeroes their loss mask
+        before this call, so ``rebalance_dense`` never sees their tokens. ``row_weights`` are
+        the prompt-mean loss weights, so "mass" is conserved under the loss actually optimized.
+        (The previous version passed an ``invalid`` tensor as a 4th positional argument, which
+        ``rebalance_dense`` does not accept: every call raised ``TypeError``.)
+        """
         infos = _metadata(infos)
         hit = self.tool_error_hits(generation_mask, infos)
-        invalid = torch.tensor(
-            [float(info.get("is_infra", 0.0)) > 0.5 for info in infos],
-            dtype=torch.bool,
-            device=advantages.device,
-        ).unsqueeze(-1)
         return rebalance_dense(
             advantages,
             hit,
             response_mask,
-            invalid,
             min_scale=self.min_scale,
             max_scale=self.max_scale,
+            row_weights=row_weights,
         )

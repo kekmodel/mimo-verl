@@ -2542,6 +2542,13 @@ def compute_policy_loss_bypass_mode(
     # In bypass mode: old_log_prob IS rollout_log_prob
     rollout_log_prob = old_log_prob
 
+    # A micro-batch may hold only masked rows (invalid rows get an all-zero mask). The helper
+    # rejects an empty mask, so run it on a dummy mask for the metric keys (every micro-batch
+    # must report the same keys for DP aggregation), zero those metrics, and keep the empty mask
+    # so the loss is exactly zero, as the vanilla loss gives.
+    has_tokens = bool(response_mask.any())
+    helper_mask = response_mask if has_tokens else torch.ones_like(response_mask)
+
     # Compute IS weights and rejection mask
     # Note: For PPO-clip, we still compute IS weights for metrics, but don't apply them
     with torch.no_grad():
@@ -2549,7 +2556,7 @@ def compute_policy_loss_bypass_mode(
             compute_rollout_correction_and_rejection_mask(
                 old_log_prob=log_prob,  # Current policy (for IS ratio: π_current / π_rollout)
                 rollout_log_prob=rollout_log_prob,  # Rollout policy
-                response_mask=response_mask,
+                response_mask=helper_mask,
                 rollout_is=rollout_is,
                 rollout_is_threshold=rollout_is_threshold,
                 rollout_is_batch_normalize=rollout_is_batch_normalize,
@@ -2563,6 +2570,9 @@ def compute_policy_loss_bypass_mode(
 
     # Apply rejection mask (RS + veto)
     effective_mask = modified_response_mask
+    if not has_tokens:
+        effective_mask = response_mask
+        rollout_metrics = {key: 0.0 for key in rollout_metrics}
 
     # Dispatch to appropriate loss function based on loss_type
     if loss_type == "reinforce":

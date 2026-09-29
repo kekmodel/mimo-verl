@@ -1,0 +1,981 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>MiMo-V2.6 리포트 길잡이</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;700;800&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+:root {
+  --ground: #f2f4f8;
+  --paper: #ffffff;
+  --ink: #131926;
+  --ink-2: #394358;
+  --muted: #687289;
+  --rule: #d5dae4;
+  --rule-soft: #e7eaf0;
+  --accent: #2446c8;
+  --accent-soft: #e2e8fb;
+  --pro: #2446c8;
+  --flash: #b8740c;
+  --flash-soft: #f7ebd5;
+  --other: #a3abbd;
+  --good: #1d7a4b;
+  --good-soft: #dcf0e5;
+  --warn: #b23b2e;
+  --warn-soft: #f7e0dc;
+  --code-bg: #eceff5;
+  --shadow: 0 1px 2px rgba(19, 25, 38, .05), 0 8px 24px rgba(19, 25, 38, .06);
+  --display: "Hahmlet", "AppleMyungjo", "Batang", serif;
+  --sans: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #0e121b;
+    --paper: #161b27;
+    --ink: #e6eaf2;
+    --ink-2: #bcc4d4;
+    --muted: #8a93a8;
+    --rule: #2a3245;
+    --rule-soft: #1f2636;
+    --accent: #93a8ff;
+    --accent-soft: #1f2a4d;
+    --pro: #93a8ff;
+    --flash: #f0b552;
+    --flash-soft: #3a2d14;
+    --other: #56607a;
+    --good: #6fd19c;
+    --good-soft: #173526;
+    --warn: #f09285;
+    --warn-soft: #43201c;
+    --code-bg: #1f2636;
+    --shadow: 0 1px 2px rgba(0,0,0,.35), 0 8px 24px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #0e121b;
+  --paper: #161b27;
+  --ink: #e6eaf2;
+  --ink-2: #bcc4d4;
+  --muted: #8a93a8;
+  --rule: #2a3245;
+  --rule-soft: #1f2636;
+  --accent: #93a8ff;
+  --accent-soft: #1f2a4d;
+  --pro: #93a8ff;
+  --flash: #f0b552;
+  --flash-soft: #3a2d14;
+  --other: #56607a;
+  --good: #6fd19c;
+  --good-soft: #173526;
+  --warn: #f09285;
+  --warn-soft: #43201c;
+  --code-bg: #1f2636;
+  --shadow: 0 1px 2px rgba(0,0,0,.35), 0 8px 24px rgba(0,0,0,.3);
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.75;
+  padding-inline: 20px;
+  padding-block: 0 90px;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
+#app[data-model="pro"] .fl { display: none; }
+#app[data-model="flash"] .pr { display: none; }
+
+.wrap { max-width: 1080px; margin: 0 auto; }
+.col { max-width: 760px; }
+
+/* top bar */
+.bar {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 10;
+  background: var(--ground);
+  border-bottom: 1px solid var(--rule);
+  margin-inline: -20px;
+  padding: 10px 20px;
+}
+.bar-in { max-width: 1080px; margin: 0 auto; display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.bar nav { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; flex: 1 1 400px; min-width: 0; }
+.bar nav a { font-size: 13px; color: var(--ink-2); text-decoration: none; padding: 4px 9px; border-radius: 5px; white-space: nowrap; }
+.bar nav a:hover { background: var(--rule-soft); color: var(--ink); }
+.toggle { display: inline-flex; border: 1px solid var(--rule); border-radius: 7px; overflow: hidden; background: var(--paper); flex: none; }
+.toggle button {
+  font: inherit; font-size: 13px; font-weight: 500;
+  border: 0; background: transparent; color: var(--ink-2);
+  padding: 5px 13px; cursor: pointer;
+}
+.toggle button[aria-pressed="true"][data-m="pro"] { background: var(--pro); color: var(--paper); }
+.toggle button[aria-pressed="true"][data-m="flash"] { background: var(--flash); color: var(--paper); }
+
+/* hero */
+header.hero { padding-block: 48px 36px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1 {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(34px, 5.6vw, 58px);
+  line-height: 1.16;
+  letter-spacing: -.015em;
+  margin: 12px 0 18px;
+  text-wrap: balance;
+}
+.lede { font-size: 18px; color: var(--ink-2); max-width: 40em; margin: 0 0 8px; }
+
+/* lifecycle rail */
+.rail {
+  margin-top: 30px;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  background: var(--paper);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.rail > a {
+  display: block;
+  padding: 14px 14px 16px;
+  border-right: 1px solid var(--rule-soft);
+  text-decoration: none;
+  color: var(--ink);
+  position: relative;
+  min-width: 0;
+}
+.rail > a:last-child { border-right: 0; }
+.rail > a:hover { background: var(--accent-soft); }
+.rail .n { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.rail .t { display: block; font-weight: 700; font-size: 14.5px; line-height: 1.35; margin: 2px 0 6px; }
+.rail .d { display: block; font-size: 12.5px; color: var(--ink-2); line-height: 1.45; }
+.rail .q { display: block; font-family: var(--mono); font-size: 12px; margin-top: 8px; color: var(--accent); font-variant-numeric: tabular-nums; }
+.rail > a.focus { background: var(--accent-soft); }
+.rail > a.focus .t { color: var(--accent); }
+@media (max-width: 960px) { .rail { grid-template-columns: repeat(4, minmax(0, 1fr)); } .rail > a { border-bottom: 1px solid var(--rule-soft); } }
+@media (max-width: 560px) { .rail { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.takeaways { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 26px; }
+.takeaways div { border-top: 3px solid var(--accent); padding-top: 10px; }
+.takeaways b { display: block; font-size: 15px; margin-bottom: 4px; }
+.takeaways p { font-size: 14px; color: var(--ink-2); margin: 0; line-height: 1.6; }
+@media (max-width: 760px) { .takeaways { grid-template-columns: 1fr; } }
+
+/* sections */
+section, header.hero { scroll-margin-top: 64px; }
+section { padding-top: 64px; }
+.chap { font-family: var(--mono); font-size: 12px; color: var(--muted); letter-spacing: .06em; }
+h2 {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(26px, 3.4vw, 36px);
+  line-height: 1.28;
+  margin: 4px 0 8px;
+  text-wrap: balance;
+}
+.q-line { font-size: 17px; color: var(--ink-2); margin: 0 0 22px; max-width: 42em; }
+h3 { font-size: 18.5px; font-weight: 700; margin: 36px 0 10px; line-height: 1.45; }
+p { margin: 0 0 14px; max-width: 44em; }
+code { font-family: var(--mono); font-size: .86em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+ul.tight, ol.tight { padding-left: 20px; margin: 0 0 16px; max-width: 44em; }
+ul.tight li, ol.tight li { margin-bottom: 6px; }
+.sub { color: var(--muted); font-size: 14px; }
+.math { overflow-x: auto; overflow-y: hidden; padding: 4px 2px; margin: 10px 0 18px; max-width: 100%; }
+
+.plain {
+  background: var(--accent-soft);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin: 16px 0 22px;
+  max-width: 44em;
+  font-size: 15px;
+}
+.plain b:first-child { font-family: var(--mono); font-size: 11.5px; letter-spacing: .06em; color: var(--accent); display: block; margin-bottom: 3px; font-weight: 700; }
+
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 16px 0 22px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 16px 0 22px; }
+.grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 16px 0 22px; }
+@media (max-width: 860px) { .grid3, .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .grid2, .grid3, .grid4 { grid-template-columns: 1fr; } }
+.box { background: var(--paper); border: 1px solid var(--rule); border-radius: 10px; padding: 16px 18px; min-width: 0; }
+.box h4 { margin: 0 0 6px; font-size: 15.5px; }
+.box p, .box li { font-size: 14px; color: var(--ink-2); line-height: 1.62; }
+.box p:last-child { margin-bottom: 0; }
+.box ul { padding-left: 18px; margin: 0; }
+.box .tag { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: .04em; display: block; margin-bottom: 4px; }
+
+/* tables */
+.tbl { overflow-x: auto; margin: 14px 0 22px; border: 1px solid var(--rule); border-radius: 10px; background: var(--paper); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+th { font-weight: 500; font-size: 12px; color: var(--muted); font-family: var(--mono); background: var(--ground); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td.n, th.n { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.grp td { background: var(--ground); font-family: var(--mono); font-size: 11.5px; color: var(--muted); letter-spacing: .05em; padding-block: 5px; }
+td.hl, th.hl { background: var(--accent-soft); }
+#app[data-model="flash"] td.hl-f, #app[data-model="flash"] th.hl-f { background: var(--flash-soft); }
+#app[data-model="pro"] td.hl-p, #app[data-model="pro"] th.hl-p { background: var(--accent-soft); }
+
+/* stacked bars */
+.stack { display: flex; height: 30px; border-radius: 6px; overflow: hidden; margin: 8px 0 6px; }
+.stack span { display: flex; align-items: center; padding-inline: 8px; font-family: var(--mono); font-size: 12px; color: var(--paper); white-space: nowrap; overflow: hidden; min-width: 0; }
+.stack .s1 { background: var(--accent); }
+.stack .s2 { background: var(--flash); }
+.stack .s3 { background: var(--good); }
+.stack .s4 { background: var(--other); color: var(--ink); }
+.stack-legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12.5px; color: var(--muted); }
+.stack-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+/* layer proportion */
+.layers { display: flex; flex-wrap: wrap; gap: 3px; margin: 10px 0 6px; max-width: 760px; }
+.layers i { display: block; width: 12px; height: 26px; border-radius: 2px; background: var(--rule); }
+.layers i.ga { background: var(--accent); }
+.layers i.ga0 { background: var(--flash); }
+
+/* benchmark table */
+.filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 10px; }
+.filters button, .chip {
+  font: inherit; font-size: 13px; color: var(--ink);
+  background: var(--paper); border: 1px solid var(--rule); border-radius: 6px;
+  padding: 4px 11px; cursor: pointer;
+}
+.filters button:hover { border-color: var(--accent); }
+.filters button[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+#bench td.v { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; min-width: 78px; }
+#bench td.v .bv { display: block; height: 4px; border-radius: 2px; background: var(--other); margin-top: 3px; margin-left: auto; }
+#bench td.v.best { font-weight: 700; }
+#bench td.v.m-pro .bv { background: var(--pro); }
+#bench td.v.m-flash .bv { background: var(--flash); }
+#bench th.v { text-align: right; }
+
+/* growth bars (SFT -> RL) */
+.grow { display: grid; gap: 8px; margin: 14px 0 22px; max-width: 760px; }
+.grow-row { display: grid; grid-template-columns: 170px minmax(0, 1fr) 118px; gap: 12px; align-items: center; font-size: 13.5px; }
+.grow-row .trk { position: relative; height: 14px; background: var(--rule-soft); border-radius: 3px; }
+.grow-row .trk span { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 3px; }
+.grow-row .a { background: var(--other); }
+.grow-row .b { background: var(--flash); opacity: .55; }
+.grow-row .c { background: var(--accent); height: 6px; top: 4px !important; bottom: auto !important; }
+.grow-row .num { font-family: var(--mono); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) { .grow-row { grid-template-columns: 110px minmax(0, 1fr) 96px; } }
+
+/* timeline */
+.tl { list-style: none; padding: 0; margin: 16px 0 22px; border-left: 2px solid var(--rule); max-width: 44em; }
+.tl li { position: relative; padding: 0 0 14px 20px; }
+.tl li::before { content: ""; position: absolute; left: -6px; top: 8px; width: 10px; height: 10px; border-radius: 50%; background: var(--paper); border: 2px solid var(--accent); }
+.tl .when { font-family: var(--mono); font-size: 12px; color: var(--muted); display: block; }
+.tl p { margin: 0; font-size: 14.5px; }
+
+.hack-cases { display: grid; gap: 10px; margin: 14px 0 22px; }
+.hack-case { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 14px; background: var(--paper); border: 1px solid var(--rule); border-radius: 10px; padding: 12px 16px; }
+.hack-case b { font-size: 14px; }
+.hack-case .say { font-size: 13.5px; color: var(--ink-2); }
+.hack-case .say q { font-style: italic; }
+.hack-case code { font-size: 12px; }
+@media (max-width: 560px) { .hack-case { grid-template-columns: 1fr; gap: 4px; } }
+
+footer { margin-top: 70px; padding-top: 20px; border-top: 1px solid var(--rule); font-size: 13px; color: var(--muted); max-width: 760px; }
+mjx-container[jax="SVG"]{direction:ltr}mjx-container[jax="SVG"][display="true"]{display:block;text-align:left;margin:.4em 0}mjx-container[jax="SVG"]>svg{overflow:visible;max-width:none}mjx-container[jax="SVG"]>svg a{fill:blue;stroke:blue}
+
+.est {
+  background: var(--flash-soft);
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin: 16px 0 22px;
+  max-width: 44em;
+  font-size: 15px;
+}
+.est > .est-h { display: flex; gap: 8px; align-items: baseline; margin-bottom: 6px; flex-wrap: wrap; }
+.est > .est-h b { font-size: 15.5px; }
+.est-tag { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--flash); border: 1px solid var(--flash); border-radius: 4px; padding: 0 6px; letter-spacing: .04em; }
+.est p { margin: 0 0 10px; }
+.est p:last-child, .est ul:last-child, .est .tbl:last-child { margin-bottom: 0; }
+.est ul, .est ol { padding-left: 20px; margin: 0 0 10px; }
+.est li { margin-bottom: 4px; }
+.est .tbl { margin: 10px 0 12px; }
+.est .src { font-size: 13px; color: var(--muted); }
+</style>
+
+<div id="app" data-model="pro">
+  <div class="bar">
+    <div class="bar-in">
+      <nav aria-label="장 이동">
+        <a href="#intro">1 서론</a>
+        <a href="#model">2 모델</a>
+        <a href="#pretrain">3 사전·중간학습</a>
+        <a href="#rl-compute">4.1 RL 연산</a>
+        <a href="#rl-env">4.2 환경·하니스</a>
+        <a href="#rl-grader">4.3 채점</a>
+        <a href="#run">5 30스텝 런</a>
+        <a href="#mopd">5.6 MOPD2</a>
+        <a href="#infra">6 인프라</a>
+        <a href="#results">표 3 성능</a>
+        <a href="#open">7 오픈소스</a>
+        <a href="#close">8 결론</a>
+      </nav>
+      <div class="toggle" role="group" aria-label="모델 선택">
+        <button type="button" data-m="pro" aria-pressed="true" id="m-pro">Pro</button>
+        <button type="button" data-m="flash" aria-pressed="false" id="m-flash">Flash</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <header class="hero" id="intro">
+      <div class="chap">리포트 1장 · 서론 요약</div>
+      <div class="eyebrow">MiMo-V2.6 Technical Report · 44쪽 · 2026-09-22</div>
+      <h1>RL 연산을 세 방향으로 키운<br>에이전트 모델 두 개</h1>
+      <p class="lede">샤오미 MiMo 팀의 MiMo-V2.6 리포트를 처음 읽는 사람을 위한 길잡이입니다. 모델 구조에서 사전학습, 30스텝짜리 대규모 RL, 증류, 인프라, 오픈소스 공개까지 리포트 순서대로 요점과 숫자를 풀었습니다. 오른쪽 위 토글로 Pro와 Flash의 수치를 바꿔 볼 수 있습니다.</p>
+
+      <div class="rail" aria-label="학습 단계">
+        <a href="#pretrain"><span class="n">1</span><span class="t">텍스트 사전학습</span><span class="d">언어 백본만, 32K → 256K</span><span class="q"><span class="pr">27T 토큰</span><span class="fl">26T 토큰</span></span></a>
+        <a href="#pretrain"><span class="n">2</span><span class="t">옴니 사전학습</span><span class="d">ViT·오디오 인코더 결합</span><span class="q"><span class="pr">3T 토큰</span><span class="fl">22T 토큰</span></span></a>
+        <a href="#pretrain"><span class="n">3</span><span class="t">중간학습</span><span class="d">에이전트 궤적 중심, 1M 문맥, Muon 전환</span><span class="q">256K → 1M</span></a>
+        <a href="#rl-compute"><span class="n">4</span><span class="t">짧은 SFT</span><span class="d">RL 시작점</span><span class="q">MiMo-V2.6-SFT</span></a>
+        <a href="#rl-compute" class="focus"><span class="n">5</span><span class="t">혼합 RL</span><span class="d">코드·범용·시각·보안을 한 런에</span><span class="q"><span class="pr">30스텝 · $2.6M</span><span class="fl">30스텝 · $0.9M</span></span></a>
+        <a href="#mopd"><span class="n">6</span><span class="t">MOPD2</span><span class="d">여러 교사의 능력을 증류로 합침</span><span class="q">검증 어려운 영역</span></a>
+        <a href="#open"><span class="n">7</span><span class="t">공개</span><span class="d">9B 증류 모델, 환경, RL 프레임워크</span><span class="q">~7k 과제</span></a>
+      </div>
+
+      <div class="takeaways">
+        <div><b>학습 연산을 키웠다</b><p>스텝당 1568 × 16 = 25K 궤적, 27~37억 토큰. 수천 GPU를 한 런에 묶고, 긴 롤아웃은 다음 스텝으로 넘겨 이어 생성</p></div>
+        <div><b>환경과 하니스를 넓혔다</b><p>코드·범용·시각·보안 환경을 합성하고, 최소 구성 mini-harness 여러 개로 번갈아 학습</p></div>
+        <div><b>채점에 연산을 썼다</b><p>테스트 통과 여부를 넘어 에이전트 grader가 그룹을 비교해 "더 나은 통과"에 credit을 몰아줌</p></div>
+      </div>
+    </header>
+
+    <!-- MODEL -->
+    <section id="model">
+      <div class="chap">리포트 2장</div>
+      <h2>모델: 싸게 긴 문맥을 보는 하이브리드 MoE</h2>
+      <p class="q-line">긴 에이전트 궤적(최대 1M 토큰)을 RL로 돌리려면 추론 비용이 먼저 감당돼야 합니다. 구조의 선택은 대부분 여기서 나옵니다.</p>
+
+      <div class="grid2">
+        <div class="box">
+          <span class="tag">MiMo-V2.6-Pro</span>
+          <h4>총 1.02T · 활성 42B</h4>
+          <p>70층(SWA 60 / GA 10), hidden 6144, expert 384개 중 8개 활성</p>
+        </div>
+        <div class="box">
+          <span class="tag">MiMo-V2.6-Flash</span>
+          <h4>총 310B · 활성 15B</h4>
+          <p>48층(SWA 39 / GA 9), hidden 4096, expert 256개 중 8개 활성</p>
+        </div>
+      </div>
+
+      <h3>Sliding Window와 Global Attention을 섞는다</h3>
+      <p>대부분의 층은 앞 128토큰만 보는 sliding window attention(SWA)이고, 몇 층마다 한 번 전체를 보는 global attention(GA)이 들어갑니다. 첫 층만 예외로 GA에 dense FFN을 써서 초기 표현을 안정시킵니다. SWA층은 KV 캐시가 창 크기로 묶이니 1M 문맥에서도 메모리와 통신이 거의 늘지 않습니다.</p>
+      <div class="layers" id="layers" role="img" aria-label="층 구성 비율"></div>
+      <div class="stack-legend"><span><i style="background:var(--flash)"></i>첫 층 GA + dense FFN</span><span><i style="background:var(--accent)"></i>GA 층</span><span><i style="background:var(--rule)"></i>SWA 층 (창 128)</span><span>층 수와 비율만 표시. 실제 배치 순서는 리포트에 표로 나오지 않음</span></div>
+
+      <div class="tbl">
+        <table>
+          <thead><tr><th>설정</th><th class="n hl-f">Flash</th><th class="n hl-p">Pro</th></tr></thead>
+          <tbody>
+            <tr><td>층 (전체 / SWA / GA)</td><td class="n hl-f">48 / 39 / 9</td><td class="n hl-p">70 / 60 / 10</td></tr>
+            <tr><td>Hidden size</td><td class="n hl-f">4096</td><td class="n hl-p">6144</td></tr>
+            <tr><td>SWA head (Q / KV)</td><td class="n hl-f">64 / 8</td><td class="n hl-p">128 / 8</td></tr>
+            <tr><td>GA head (Q / KV)</td><td class="n hl-f">64 / 4</td><td class="n hl-p">128 / 8</td></tr>
+            <tr><td>Head dim (QK / V)</td><td class="n hl-f">192 / 128</td><td class="n hl-p">192 / 128</td></tr>
+            <tr><td>Expert (전체 / 활성), shared expert 없음</td><td class="n hl-f">256 / 8</td><td class="n hl-p">384 / 8</td></tr>
+            <tr><td>파라미터 (전체 / 활성)</td><td class="n hl-f">310B / 15B</td><td class="n hl-p">1.02T / 42B</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>눈과 귀, 그리고 초안 모델</h3>
+      <div class="grid3">
+        <div class="box">
+          <span class="tag">MiMo-ViT · 681M</span>
+          <h4>창이 겹치는 비전 인코더</h4>
+          <p>고정 창 대신 sink가 붙은 SWA를 쓰고, 층마다 행 순서와 열 순서를 번갈아 읽어 창 경계를 넘나듭니다. 작은 LLM과 붙여 이해 데이터만으로 4T+ 이미지 토큰을 학습했습니다(contrastive 없음).</p>
+        </div>
+        <div class="box">
+          <span class="tag">Audio · 308M + 127M</span>
+          <h4>25Hz 토큰 → 6.25Hz 입력</h4>
+          <p>2천만 시간 오디오로 학습한 토크나이저가 한 프레임을 RVQ 20단 코드로 바꿉니다. 네 프레임을 한 패치로 묶어 백본에는 초당 6.25개 임베딩만 들어갑니다.</p>
+        </div>
+        <div class="box">
+          <span class="tag">DFlash drafter · 5층</span>
+          <h4>한 번에 7토큰을 추측</h4>
+          <p>block diffusion 방식의 speculative decoder. 앵커 토큰에서 다음 7개를 한 번에 제안하고 백본이 병렬 검증합니다. RL 롤아웃 속도의 핵심입니다(리포트 6장 참고).</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PRETRAIN -->
+    <section id="pretrain">
+      <div class="chap">리포트 3장</div>
+      <h2>사전학습과 중간학습: RL을 위한 몸 만들기</h2>
+      <p class="q-line">사전학습은 넓은 지식을, 중간학습은 "RL에서 탐색할 수 있는 능력"을 만듭니다. 이 리포트에서 중간학습은 RL 준비 단계로서 비중이 큽니다.</p>
+
+      <h3>사전학습: 텍스트 먼저, 그다음 옴니</h3>
+      <p>1단계는 언어 백본을 텍스트로만, 2단계는 ViT와 오디오 인코더를 붙여 이미지·영상·오디오까지 함께 학습합니다. 문맥은 32K로 시작해 도중에 256K로 늘립니다. 옵티마이저는 AdamW입니다.</p>
+      <div class="box" style="max-width:760px">
+        <div class="stack" role="img" aria-label="사전학습 토큰 구성">
+          <span class="s1 pr" style="width:90%">텍스트 27T</span><span class="s2 pr" style="width:10%">3T</span>
+          <span class="s1 fl" style="width:54.2%">텍스트 26T</span><span class="s2 fl" style="width:45.8%">옴니 22T</span>
+        </div>
+        <div class="stack-legend"><span><i style="background:var(--accent)"></i>텍스트 단계</span><span><i style="background:var(--flash)"></i>옴니 단계</span><span><span class="pr">Pro 합계 30T</span><span class="fl">Flash 합계 48T</span></span></div>
+      </div>
+      <p class="sub" style="margin-top:10px">작은 Flash가 오히려 더 많은 토큰(48T)을, 특히 옴니 데이터를 훨씬 많이 봤습니다.</p>
+
+      <h3>중간학습: 세 가지를 바꾼다</h3>
+      <div class="grid3">
+        <div class="box">
+          <h4>데이터를 에이전트 쪽으로</h4>
+          <p>코딩·범용·시각·리서치 에이전트 궤적에 레포 단위 코드와 멀티모달 데이터를 섞습니다. 대부분의 연산은 256K에서 쓰고, 마지막에 1M으로 늘립니다.</p>
+        </div>
+        <div class="box">
+          <h4>AdamW → Muown</h4>
+          <p>혼합 과제 RL에서 배치를 키울수록 AdamW의 효율이 떨어졌습니다. 행렬 단위로 업데이트를 직교화하는 Muon은 큰 배치에서도 데이터 효율이 유지됩니다. 행 노름을 제어하는 변형(Muown)을 hidden 행렬에 쓰고, 임베딩·LM head·router는 AdamW로 둡니다. 전환 중 loss spike는 없었습니다.</p>
+        </div>
+        <div class="box">
+          <h4>MXFP4 QAT</h4>
+          <p>RL 롤아웃을 MXFP4 expert로 돌리기 위해 저정밀 연산에 미리 적응시킵니다.</p>
+        </div>
+      </div>
+      <div class="plain"><b>reward hacking 대응</b>개발 초기 RL 실험에서 공개된 수정을 베끼는 hack이 보이자, 중간학습 단계로 되돌아가 그 궤적을 "실수를 알아차리고 고쳐 가는" 형태로 다시 쓴 데이터를 넣었습니다. 그 뒤 SFT와 최종 RL(30스텝, 한 번)을 다시 진행했습니다. 어느 체크포인트에서 중간학습을 다시 시작했는지는 리포트에 없습니다.</div>
+
+      <h3>리포트가 말하지 않은 것들</h3>
+      <div class="est">
+        <div class="est-h"><span class="est-tag">추정</span><b>"짧은 SFT"는 무엇을 했나</b></div>
+        <p>본 모델의 SFT는 "Following a short supervised fine-tuning (SFT) stage" 한 문장이 전부입니다. 데이터, 양, 스텝 수가 없습니다. 에이전트 능력은 중간학습에서 이미 만들었으니, SFT는 RL을 시작할 수 있는 상태로 맞추는 단계였을 것입니다.</p>
+        <ul>
+          <li><b>형식:</b> 대화 템플릿, 사고 과정, 도구 호출 형식. 깨지면 롤아웃이 첫 턴에서 망가져 보상이 전부 0입니다.</li>
+          <li><b>하니스 적응:</b> mini-harness별 시스템 프롬프트와 도구 스키마</li>
+          <li><b>출발 통과율:</b> 대시보드 첫 스텝에서 전부 실패 14.6%, 전부 성공 17.8%. 약 2/3의 프롬프트가 학습에 쓰일 수 있는 상태로 출발했습니다.</li>
+          <li><b>범용 기본선:</b> 같은 SFT 모델이 루브릭 채점기로도 쓰였습니다.</li>
+        </ul>
+        <p>"짧게" 한 이유는, SFT를 오래 하면 출력 분포가 좁아져 RL이 다양한 시도를 샘플링하기 어려워지기 때문으로 보입니다.</p>
+      </div>
+      <div class="est">
+        <div class="est-h"><span class="est-tag">추정</span><b>중간학습의 loss와 마스킹</b></div>
+        <p>loss도 리포트에 없습니다. 보상이나 롤아웃 이야기가 없고 데이터가 사전학습식 혼합이니 RL이 아닌 NTP이고, 백본의 MTP 모듈이 사전학습용이라 <b>NTP + MTP 보조 loss</b>를 유지했을 것입니다.</p>
+        <p>도구 출력(파일 내용, 테스트 로그)은 <b>마스킹 없이 학습</b>했을 가능성이 높습니다. "loss 토큰"을 따로 보고하는 건 9B 증류 SFT뿐이고(77.4B 중 27.2B), 사전·중간학습은 전체 토큰 수만 말합니다. 도구 출력은 대부분 레포 코드라 그 자체로 좋은 데이터이고, 환경 반응을 예측하는 학습은 RL에서 행동을 고르는 바탕이 됩니다.</p>
+        <div class="tbl">
+          <table>
+            <thead><tr><th>단계</th><th>학습 대상</th></tr></thead>
+            <tbody>
+              <tr><td>중간학습</td><td>궤적 전체 (환경 반응 포함) · 추정</td></tr>
+              <tr><td>SFT</td><td>모델 출력만 · 추정</td></tr>
+              <tr><td>RL</td><td>모델이 생성한 턴만 · 리포트 6.1절</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>생각 부분만 학습했을 가능성은 낮습니다. 에이전트 능력의 핵심은 도구 호출과 편집 같은 행동이고, 교정 데이터도 "continues with actions"까지 보여줍니다.</p>
+      </div>
+      <div class="est">
+        <div class="est-h"><span class="est-tag">추정</span><b>그러려면 과제 단위 분리가 필요하다</b></div>
+        <p>중간학습에서 어떤 과제의 궤적을 봤다면 모델은 그 과제의 환경 정보(숨은 테스트, 파일 구조)와 정답을 이미 압니다. 도구 출력을 마스킹해도 정답은 모델 자신의 턴에 남아 막을 수 없습니다. 해법은 <b>중간학습용, RL용, 평가용 과제를 처음부터 겹치지 않게 나누는 것</b>이고, 그러면 마스킹할 이유도 사라집니다.</p>
+        <p>원리는 이렇습니다. 원하는 것은 처음 보는 과제의 성공률 <mjx-container class="MathJax" jax="SVG"><svg style="vertical-align: -0.566ex;" xmlns="http://www.w3.org/2000/svg" width="18.889ex" height="2.262ex" role="img" focusable="false" viewBox="0 -750 8349.1 1000" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><path id="MJX-1-TEX-I-1D43D" d="M447 625Q447 637 354 637H329Q323 642 323 645T325 664Q329 677 335 683H352Q393 681 498 681Q541 681 568 681T605 682T619 682Q633 682 633 672Q633 670 630 658Q626 642 623 640T604 637Q552 637 545 623Q541 610 483 376Q420 128 419 127Q397 64 333 21T195 -22Q137 -22 97 8T57 88Q57 130 80 152T132 174Q177 174 182 130Q182 98 164 80T123 56Q115 54 115 53T122 44Q148 15 197 15Q235 15 271 47T324 130Q328 142 387 380T447 625Z"></path><path id="MJX-1-TEX-N-28" d="M94 250Q94 319 104 381T127 488T164 576T202 643T244 695T277 729T302 750H315H319Q333 750 333 741Q333 738 316 720T275 667T226 581T184 443T167 250T184 58T225 -81T274 -167T316 -220T333 -241Q333 -250 318 -250H315H302L274 -226Q180 -141 137 -14T94 250Z"></path><path id="MJX-1-TEX-I-1D703" d="M35 200Q35 302 74 415T180 610T319 704Q320 704 327 704T339 705Q393 701 423 656Q462 596 462 495Q462 380 417 261T302 66T168 -10H161Q125 -10 99 10T60 63T41 130T35 200ZM383 566Q383 668 330 668Q294 668 260 623T204 521T170 421T157 371Q206 370 254 370L351 371Q352 372 359 404T375 484T383 566ZM113 132Q113 26 166 26Q181 26 198 36T239 74T287 161T335 307L340 324H145Q145 321 136 286T120 208T113 132Z"></path><path id="MJX-1-TEX-N-29" d="M60 749L64 750Q69 750 74 750H86L114 726Q208 641 251 514T294 250Q294 182 284 119T261 12T224 -76T186 -143T145 -194T113 -227T90 -246Q87 -249 86 -250H74Q66 -250 63 -250T58 -247T55 -238Q56 -237 66 -225Q221 -64 221 250T66 725Q56 737 55 738Q55 746 60 749Z"></path><path id="MJX-1-TEX-N-3D" d="M56 347Q56 360 70 367H707Q722 359 722 347Q722 336 708 328L390 327H72Q56 332 56 347ZM56 153Q56 168 72 173H708Q722 163 722 153Q722 140 707 133H70Q56 140 56 153Z"></path><path id="MJX-1-TEX-D-1D53C" d="M12 666Q12 675 24 683H582Q590 680 593 672V588Q593 514 591 502T575 490Q567 490 563 495T555 517Q552 556 517 590Q486 623 445 634T340 648H282Q266 636 264 620T260 492V370H277Q329 375 358 391T404 439Q420 480 420 506Q420 529 436 529Q445 529 451 521Q455 517 455 361Q455 333 455 298T456 253Q456 217 453 207T437 197Q420 196 420 217Q420 240 406 270Q377 328 284 335H260V201Q261 174 261 134Q262 73 264 61T278 38Q281 36 282 35H331Q400 35 449 50Q571 93 602 179Q605 203 622 203Q629 203 634 197T640 183Q638 181 624 95T604 3L600 -1H24Q12 5 12 16Q12 35 51 35Q92 38 97 52Q102 60 102 341T97 632Q91 645 51 648Q12 648 12 666ZM137 341Q137 131 136 89T130 37Q129 36 129 35H235Q233 41 231 48L226 61V623L231 635L235 648H129Q132 641 133 638T135 603T137 517T137 341ZM557 603V648H504Q504 646 515 639Q527 634 542 619L557 603ZM420 317V397L406 383Q394 370 380 363L366 355Q373 350 382 346Q400 333 409 328L420 317ZM582 61L586 88Q585 88 582 83Q557 61 526 46L511 37L542 35H577Q577 36 578 39T580 49T582 61Z"></path><path id="MJX-1-TEX-I-1D465" d="M52 289Q59 331 106 386T222 442Q257 442 286 424T329 379Q371 442 430 442Q467 442 494 420T522 361Q522 332 508 314T481 292T458 288Q439 288 427 299T415 328Q415 374 465 391Q454 404 425 404Q412 404 406 402Q368 386 350 336Q290 115 290 78Q290 50 306 38T341 26Q378 26 414 59T463 140Q466 150 469 151T485 153H489Q504 153 504 145Q504 144 502 134Q486 77 440 33T333 -11Q263 -11 227 52Q186 -10 133 -10H127Q78 -10 57 16T35 71Q35 103 54 123T99 143Q142 143 142 101Q142 81 130 66T107 46T94 41L91 40Q91 39 97 36T113 29T132 26Q168 26 194 71Q203 87 217 139T245 247T261 313Q266 340 266 352Q266 380 251 392T217 404Q177 404 142 372T93 290Q91 281 88 280T72 278H58Q52 284 52 289Z"></path><path id="MJX-1-TEX-N-223C" d="M55 166Q55 241 101 304T222 367Q260 367 296 349T362 304T421 252T484 208T554 189Q616 189 655 236T694 338Q694 350 698 358T708 367Q722 367 722 334Q722 260 677 197T562 134H554Q517 134 481 152T414 196T355 248T292 293T223 311Q179 311 145 286Q109 257 96 218T80 156T69 133Q55 133 55 166Z"></path><path id="MJX-1-TEX-I-1D437" d="M287 628Q287 635 230 637Q207 637 200 638T193 647Q193 655 197 667T204 682Q206 683 403 683Q570 682 590 682T630 676Q702 659 752 597T803 431Q803 275 696 151T444 3L430 1L236 0H125H72Q48 0 41 2T33 11Q33 13 36 25Q40 41 44 43T67 46Q94 46 127 49Q141 52 146 61Q149 65 218 339T287 628ZM703 469Q703 507 692 537T666 584T629 613T590 629T555 636Q553 636 541 636T512 636T479 637H436Q392 637 386 627Q384 623 313 339T242 52Q242 48 253 48T330 47Q335 47 349 47T373 46Q499 46 581 128Q617 164 640 212T683 339T703 469Z"></path><path id="MJX-1-TEX-N-5B" d="M118 -250V750H255V710H158V-210H255V-250H118Z"></path><path id="MJX-1-TEX-N-5D" d="M22 710V750H159V-250H22V-210H119V710H22Z"></path></defs><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="scale(1,-1)"><g data-mml-node="math"><g data-mml-node="mi"><use data-c="1D43D" xlink:href="#MJX-1-TEX-I-1D43D"></use></g><g data-mml-node="mo" transform="translate(633,0)"><use data-c="28" xlink:href="#MJX-1-TEX-N-28"></use></g><g data-mml-node="mi" transform="translate(1022,0)"><use data-c="1D703" xlink:href="#MJX-1-TEX-I-1D703"></use></g><g data-mml-node="mo" transform="translate(1491,0)"><use data-c="29" xlink:href="#MJX-1-TEX-N-29"></use></g><g data-mml-node="mo" transform="translate(2157.8,0)"><use data-c="3D" xlink:href="#MJX-1-TEX-N-3D"></use></g><g data-mml-node="msub" transform="translate(3213.6,0)"><g data-mml-node="TeXAtom" data-mjx-texclass="ORD"><g data-mml-node="mi"><use data-c="1D53C" xlink:href="#MJX-1-TEX-D-1D53C"></use></g></g><g data-mml-node="TeXAtom" transform="translate(700,-150) scale(0.707)" data-mjx-texclass="ORD"><g data-mml-node="mi"><use data-c="1D465" xlink:href="#MJX-1-TEX-I-1D465"></use></g><g data-mml-node="mo" transform="translate(572,0)"><use data-c="223C" xlink:href="#MJX-1-TEX-N-223C"></use></g><g data-mml-node="mi" transform="translate(1350,0)"><use data-c="1D437" xlink:href="#MJX-1-TEX-I-1D437"></use></g></g></g><g data-mml-node="mo" transform="translate(5503.6,0)"><use data-c="5B" xlink:href="#MJX-1-TEX-N-5B"></use></g><g data-mml-node="msub" transform="translate(5781.6,0)"><g data-mml-node="mi"><use data-c="1D43D" xlink:href="#MJX-1-TEX-I-1D43D"></use></g><g data-mml-node="mi" transform="translate(588,-150) scale(0.707)"><use data-c="1D465" xlink:href="#MJX-1-TEX-I-1D465"></use></g></g><g data-mml-node="mo" transform="translate(6824.1,0)"><use data-c="28" xlink:href="#MJX-1-TEX-N-28"></use></g><g data-mml-node="mi" transform="translate(7213.1,0)"><use data-c="1D703" xlink:href="#MJX-1-TEX-I-1D703"></use></g><g data-mml-node="mo" transform="translate(7682.1,0)"><use data-c="29" xlink:href="#MJX-1-TEX-N-29"></use></g><g data-mml-node="mo" transform="translate(8071.1,0)"><use data-c="5D" xlink:href="#MJX-1-TEX-N-5D"></use></g></g></g></svg></mjx-container>인데, RL은 유한한 과제 집합의 평균 <mjx-container class="MathJax" jax="SVG"><svg style="vertical-align: -1.236ex;" xmlns="http://www.w3.org/2000/svg" width="22.755ex" height="3.614ex" role="img" focusable="false" viewBox="0 -1051 10057.9 1597.4" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><path id="MJX-2-TEX-I-1D43D" d="M447 625Q447 637 354 637H329Q323 642 323 645T325 664Q329 677 335 683H352Q393 681 498 681Q541 681 568 681T605 682T619 682Q633 682 633 672Q633 670 630 658Q626 642 623 640T604 637Q552 637 545 623Q541 610 483 376Q420 128 419 127Q397 64 333 21T195 -22Q137 -22 97 8T57 88Q57 130 80 152T132 174Q177 174 182 130Q182 98 164 80T123 56Q115 54 115 53T122 44Q148 15 197 15Q235 15 271 47T324 130Q328 142 387 380T447 625Z"></path><path id="MJX-2-TEX-N-5E" d="M112 560L249 694L257 686Q387 562 387 560L361 531Q359 532 303 581L250 627L195 580Q182 569 169 557T148 538L140 532Q138 530 125 546L112 560Z"></path><path id="MJX-2-TEX-I-1D446" d="M308 24Q367 24 416 76T466 197Q466 260 414 284Q308 311 278 321T236 341Q176 383 176 462Q176 523 208 573T273 648Q302 673 343 688T407 704H418H425Q521 704 564 640Q565 640 577 653T603 682T623 704Q624 704 627 704T632 705Q645 705 645 698T617 577T585 459T569 456Q549 456 549 465Q549 471 550 475Q550 478 551 494T553 520Q553 554 544 579T526 616T501 641Q465 662 419 662Q362 662 313 616T263 510Q263 480 278 458T319 427Q323 425 389 408T456 390Q490 379 522 342T554 242Q554 216 546 186Q541 164 528 137T492 78T426 18T332 -20Q320 -22 298 -22Q199 -22 144 33L134 44L106 13Q83 -14 78 -18T65 -22Q52 -22 52 -14Q52 -11 110 221Q112 227 130 227H143Q149 221 149 216Q149 214 148 207T144 186T142 153Q144 114 160 87T203 47T255 29T308 24Z"></path><path id="MJX-2-TEX-N-28" d="M94 250Q94 319 104 381T127 488T164 576T202 643T244 695T277 729T302 750H315H319Q333 750 333 741Q333 738 316 720T275 667T226 581T184 443T167 250T184 58T225 -81T274 -167T316 -220T333 -241Q333 -250 318 -250H315H302L274 -226Q180 -141 137 -14T94 250Z"></path><path id="MJX-2-TEX-I-1D703" d="M35 200Q35 302 74 415T180 610T319 704Q320 704 327 704T339 705Q393 701 423 656Q462 596 462 495Q462 380 417 261T302 66T168 -10H161Q125 -10 99 10T60 63T41 130T35 200ZM383 566Q383 668 330 668Q294 668 260 623T204 521T170 421T157 371Q206 370 254 370L351 371Q352 372 359 404T375 484T383 566ZM113 132Q113 26 166 26Q181 26 198 36T239 74T287 161T335 307L340 324H145Q145 321 136 286T120 208T113 132Z"></path><path id="MJX-2-TEX-N-29" d="M60 749L64 750Q69 750 74 750H86L114 726Q208 641 251 514T294 250Q294 182 284 119T261 12T224 -76T186 -143T145 -194T113 -227T90 -246Q87 -249 86 -250H74Q66 -250 63 -250T58 -247T55 -238Q56 -237 66 -225Q221 -64 221 250T66 725Q56 737 55 738Q55 746 60 749Z"></path><path id="MJX-2-TEX-N-3D" d="M56 347Q56 360 70 367H707Q722 359 722 347Q722 336 708 328L390 327H72Q56 332 56 347ZM56 153Q56 168 72 173H708Q722 163 722 153Q722 140 707 133H70Q56 140 56 153Z"></path><path id="MJX-2-TEX-N-31" d="M213 578L200 573Q186 568 160 563T102 556H83V602H102Q149 604 189 617T245 641T273 663Q275 666 285 666Q294 666 302 660V361L303 61Q310 54 315 52T339 48T401 46H427V0H416Q395 3 257 3Q121 3 100 0H88V46H114Q136 46 152 46T177 47T193 50T201 52T207 57T213 61V578Z"></path><path id="MJX-2-TEX-N-7C" d="M139 -249H137Q125 -249 119 -235V251L120 737Q130 750 139 750Q152 750 159 735V-235Q151 -249 141 -249H139Z"></path><path id="MJX-2-TEX-SO-2211" d="M61 748Q64 750 489 750H913L954 640Q965 609 976 579T993 533T999 516H979L959 517Q936 579 886 621T777 682Q724 700 655 705T436 710H319Q183 710 183 709Q186 706 348 484T511 259Q517 250 513 244L490 216Q466 188 420 134T330 27L149 -187Q149 -188 362 -188Q388 -188 436 -188T506 -189Q679 -189 778 -162T936 -43Q946 -27 959 6H999L913 -249L489 -250Q65 -250 62 -248Q56 -246 56 -239Q56 -234 118 -161Q186 -81 245 -11L428 206Q428 207 242 462L57 717L56 728Q56 744 61 748Z"></path><path id="MJX-2-TEX-I-1D465" d="M52 289Q59 331 106 386T222 442Q257 442 286 424T329 379Q371 442 430 442Q467 442 494 420T522 361Q522 332 508 314T481 292T458 288Q439 288 427 299T415 328Q415 374 465 391Q454 404 425 404Q412 404 406 402Q368 386 350 336Q290 115 290 78Q290 50 306 38T341 26Q378 26 414 59T463 140Q466 150 469 151T485 153H489Q504 153 504 145Q504 144 502 134Q486 77 440 33T333 -11Q263 -11 227 52Q186 -10 133 -10H127Q78 -10 57 16T35 71Q35 103 54 123T99 143Q142 143 142 101Q142 81 130 66T107 46T94 41L91 40Q91 39 97 36T113 29T132 26Q168 26 194 71Q203 87 217 139T245 247T261 313Q266 340 266 352Q266 380 251 392T217 404Q177 404 142 372T93 290Q91 281 88 280T72 278H58Q52 284 52 289Z"></path><path id="MJX-2-TEX-N-2208" d="M84 250Q84 372 166 450T360 539Q361 539 377 539T419 540T469 540H568Q583 532 583 520Q583 511 570 501L466 500Q355 499 329 494Q280 482 242 458T183 409T147 354T129 306T124 272V270H568Q583 262 583 250T568 230H124V228Q124 207 134 177T167 112T231 48T328 7Q355 1 466 0H570Q583 -10 583 -20Q583 -32 568 -40H471Q464 -40 446 -40T417 -41Q262 -41 172 45Q84 127 84 250Z"></path></defs><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="scale(1,-1)"><g data-mml-node="math"><g data-mml-node="msub"><g data-mml-node="TeXAtom" data-mjx-texclass="ORD"><g data-mml-node="mover"><g data-mml-node="mi"><use data-c="1D43D" xlink:href="#MJX-2-TEX-I-1D43D"></use></g><g data-mml-node="mo" transform="translate(503,257) translate(-250 0)"><use data-c="5E" xlink:href="#MJX-2-TEX-N-5E"></use></g></g></g><g data-mml-node="mi" transform="translate(588,-150) scale(0.707)"><use data-c="1D446" xlink:href="#MJX-2-TEX-I-1D446"></use></g></g><g data-mml-node="mo" transform="translate(1094.1,0)"><use data-c="28" xlink:href="#MJX-2-TEX-N-28"></use></g><g data-mml-node="mi" transform="translate(1483.1,0)"><use data-c="1D703" xlink:href="#MJX-2-TEX-I-1D703"></use></g><g data-mml-node="mo" transform="translate(1952.1,0)"><use data-c="29" xlink:href="#MJX-2-TEX-N-29"></use></g><g data-mml-node="mo" transform="translate(2618.9,0)"><use data-c="3D" xlink:href="#MJX-2-TEX-N-3D"></use></g><g data-mml-node="mstyle" transform="translate(3674.6,0)"><g data-mml-node="mfrac"><g data-mml-node="mn" transform="translate(467.8,394) scale(0.707)"><use data-c="31" xlink:href="#MJX-2-TEX-N-31"></use></g><g data-mml-node="mrow" transform="translate(220,-370) scale(0.707)"><g data-mml-node="mo" transform="translate(0 -0.5)"><use data-c="7C" xlink:href="#MJX-2-TEX-N-7C"></use></g><g data-mml-node="mi" transform="translate(278,0)"><use data-c="1D446" xlink:href="#MJX-2-TEX-I-1D446"></use></g><g data-mml-node="mo" transform="translate(923,0) translate(0 -0.5)"><use data-c="7C" xlink:href="#MJX-2-TEX-N-7C"></use></g></g><rect width="1049.2" height="60" x="120" y="220"></rect></g></g><g data-mml-node="munder" transform="translate(5130.5,0)"><g data-mml-node="mo"><use data-c="2211" xlink:href="#MJX-2-TEX-SO-2211"></use></g><g data-mml-node="TeXAtom" transform="translate(1089,-285.4) scale(0.707)" data-mjx-texclass="ORD"><g data-mml-node="mi"><use data-c="1D465" xlink:href="#MJX-2-TEX-I-1D465"></use></g><g data-mml-node="mo" transform="translate(572,0)"><use data-c="2208" xlink:href="#MJX-2-TEX-N-2208"></use></g><g data-mml-node="mi" transform="translate(1239,0)"><use data-c="1D446" xlink:href="#MJX-2-TEX-I-1D446"></use></g></g></g><g data-mml-node="msub" transform="translate(7768.4,0)"><g data-mml-node="mi"><use data-c="1D43D" xlink:href="#MJX-2-TEX-I-1D43D"></use></g><g data-mml-node="mi" transform="translate(588,-150) scale(0.707)"><use data-c="1D465" xlink:href="#MJX-2-TEX-I-1D465"></use></g></g><g data-mml-node="mo" transform="translate(8810.9,0)"><use data-c="28" xlink:href="#MJX-2-TEX-N-28"></use></g><g data-mml-node="mi" transform="translate(9199.9,0)"><use data-c="1D703" xlink:href="#MJX-2-TEX-I-1D703"></use></g><g data-mml-node="mo" transform="translate(9668.9,0)"><use data-c="29" xlink:href="#MJX-2-TEX-N-29"></use></g></g></g></svg></mjx-container>을 최적화합니다. 이게 <mjx-container class="MathJax" jax="SVG"><svg style="vertical-align: -0.05ex;" xmlns="http://www.w3.org/2000/svg" width="1.432ex" height="1.595ex" role="img" focusable="false" viewBox="0 -683 633 705" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><path id="MJX-3-TEX-I-1D43D" d="M447 625Q447 637 354 637H329Q323 642 323 645T325 664Q329 677 335 683H352Q393 681 498 681Q541 681 568 681T605 682T619 682Q633 682 633 672Q633 670 630 658Q626 642 623 640T604 637Q552 637 545 623Q541 610 483 376Q420 128 419 127Q397 64 333 21T195 -22Q137 -22 97 8T57 88Q57 130 80 152T132 174Q177 174 182 130Q182 98 164 80T123 56Q115 54 115 53T122 44Q148 15 197 15Q235 15 271 47T324 130Q328 142 387 380T447 625Z"></path></defs><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="scale(1,-1)"><g data-mml-node="math"><g data-mml-node="mi"><use data-c="1D43D" xlink:href="#MJX-3-TEX-I-1D43D"></use></g></g></g></svg></mjx-container>의 대리가 되려면 <mjx-container class="MathJax" jax="SVG"><svg style="vertical-align: -0.05ex;" xmlns="http://www.w3.org/2000/svg" width="1.459ex" height="1.645ex" role="img" focusable="false" viewBox="0 -705 645 727" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><path id="MJX-4-TEX-I-1D446" d="M308 24Q367 24 416 76T466 197Q466 260 414 284Q308 311 278 321T236 341Q176 383 176 462Q176 523 208 573T273 648Q302 673 343 688T407 704H418H425Q521 704 564 640Q565 640 577 653T603 682T623 704Q624 704 627 704T632 705Q645 705 645 698T617 577T585 459T569 456Q549 456 549 465Q549 471 550 475Q550 478 551 494T553 520Q553 554 544 579T526 616T501 641Q465 662 419 662Q362 662 313 616T263 510Q263 480 278 458T319 427Q323 425 389 408T456 390Q490 379 522 342T554 242Q554 216 546 186Q541 164 528 137T492 78T426 18T332 -20Q320 -22 298 -22Q199 -22 144 33L134 44L106 13Q83 -14 78 -18T65 -22Q52 -22 52 -14Q52 -11 110 221Q112 227 130 227H143Q149 221 149 216Q149 214 148 207T144 186T142 153Q144 114 160 87T203 47T255 29T308 24Z"></path></defs><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="scale(1,-1)"><g data-mml-node="math"><g data-mml-node="mi"><use data-c="1D446" xlink:href="#MJX-4-TEX-I-1D446"></use></g></g></g></svg></mjx-container>가 초기 정책과 독립이어야 합니다. 중간학습에서 본 과제는 이 독립성을 깨서, 보상과 상관된 행동이 "풀어내기"가 아니라 "떠올리기"가 됩니다. 떠올리는 능력은 처음 보는 과제로 옮겨가지 않습니다.</p>
+        <div class="tbl">
+          <table>
+            <thead><tr><th>겹친 과제 처리</th><th>결과</th></tr></thead>
+            <tbody>
+              <tr><td>RL·평가 풀에서 뺌</td><td>독립성 회복. 원리적으로 맞음</td></tr>
+              <tr><td>교정 궤적을 중간에 끊음</td><td>부분 회복. 풀이 방향은 추론에 남음</td></tr>
+              <tr><td>무시</td><td>겹치는 비율 ε만큼 편향. 완전히 외운 과제는 전부 통과로 걸러져 실제로는 더 작음</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>분리 단위는 인스턴스(같은 이슈), 레포, 시간(특정 날짜 이후 이슈) 순으로 엄격해집니다. 평가 쪽은 점수가 부풀면 주장 자체가 흔들리니 더 엄격하게 나누는 게 관행입니다. 리포트는 GitHub 과제 합성에서 중복 후보를 걸렀다고만 쓰고, 단계 간 분리는 언급하지 않습니다.</p>
+      </div>
+    </section>
+
+    <!-- RL COMPUTE -->
+    <section id="rl-compute">
+      <div class="chap">리포트 4.1절</div>
+      <h2>RL 축 ①: 학습 연산을 키운다</h2>
+      <p class="q-line">배치를 크게 잡으면 GPU를 많이 붙일수록 처리량이 그대로 늘어납니다. 대신 긴 꼬리 롤아웃과 거대한 데이터를 다루는 인프라가 필요합니다.</p>
+
+      <div class="grid4">
+        <div class="box"><span class="tag">배치</span><h4>1568 × 16</h4><p>프롬프트 1568개, 그룹 크기 16. 스텝당 약 25K 궤적</p></div>
+        <div class="box"><span class="tag">스텝당 토큰</span><h4>2.7B~3.7B</h4><p>궤적당 11만~15만 토큰</p></div>
+        <div class="box"><span class="tag">비용</span><h4><span class="pr">$2.6M</span><span class="fl">$0.9M</span></h4><p>RL 후처리 전체</p></div>
+        <div class="box"><span class="tag">DeepSWE v1.1</span><h4><span class="pr">58.4 → 72.6</span><span class="fl">48.7 → 65.7</span></h4><p>누적 비용에 따라 꾸준히 상승</p></div>
+      </div>
+
+      <h3>돈은 어디에 쓰였나</h3>
+      <div class="box" style="max-width:760px">
+        <div class="stack" role="img" aria-label="RL 비용 구성">
+          <span class="s1 pr" style="width:43.8%">롤아웃 43.8%</span><span class="s2 pr" style="width:43.5%">학습 43.5%</span><span class="s3 pr" style="width:12.7%">채점 12.7%</span>
+          <span class="s1 fl" style="width:44.9%">롤아웃 44.9%</span><span class="s2 fl" style="width:40.9%">학습 40.9%</span><span class="s3 fl" style="width:14.2%">채점 14.2%</span>
+        </div>
+        <div class="stack-legend"><span><i style="background:var(--accent)"></i>롤아웃</span><span><i style="background:var(--flash)"></i>학습</span><span><i style="background:var(--good)"></i>채점 (agentic grader)</span></div>
+      </div>
+      <p class="sub" style="margin-top:10px">Flash 비율은 그림 3의 막대 순서를 Pro와 같은 방식으로 읽은 값입니다.</p>
+
+      <h3>목적식</h3>
+      <div class="math"><mjx-container class="MathJax" jax="SVG" display="true"><svg style="vertical-align: -2.893ex;" xmlns="http://www.w3.org/2000/svg" width="68.971ex" height="7.118ex" role="img" focusable="false" viewBox="0 -1867.4 30485 3146.3" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><path id="MJX-1-TEX-C-4C" d="M62 -22T47 -22T32 -11Q32 -1 56 24T83 55Q113 96 138 172T180 320T234 473T323 609Q364 649 419 677T531 705Q559 705 578 696T604 671T615 645T618 623V611Q618 582 615 571T598 548Q581 531 558 520T518 509Q503 509 503 520Q503 523 505 536T507 560Q507 590 494 610T452 630Q423 630 410 617Q367 578 333 492T271 301T233 170Q211 123 204 112L198 103L224 102Q281 102 369 79T509 52H523Q535 64 544 87T579 128Q616 152 641 152Q656 152 656 142Q656 101 588 40T433 -22Q381 -22 289 1T156 28L141 29L131 20Q111 0 87 -11Z"></path><path id="MJX-1-TEX-N-28" d="M94 250Q94 319 104 381T127 488T164 576T202 643T244 695T277 729T302 750H315H319Q333 750 333 741Q333 738 316 720T275 667T226 581T184 443T167 250T184 58T225 -81T274 -167T316 -220T333 -241Q333 -250 318 -250H315H302L274 -226Q180 -141 137 -14T94 250Z"></path><path id="MJX-1-TEX-I-1D703" d="M35 200Q35 302 74 415T180 610T319 704Q320 704 327 704T339 705Q393 701 423 656Q462 596 462 495Q462 380 417 261T302 66T168 -10H161Q125 -10 99 10T60 63T41 130T35 200ZM383 566Q383 668 330 668Q294 668 260 623T204 521T170 421T157 371Q206 370 254 370L351 371Q352 372 359 404T375 484T383 566ZM113 132Q113 26 166 26Q181 26 198 36T239 74T287 161T335 307L340 324H145Q145 321 136 286T120 208T113 132Z"></path><path id="MJX-1-TEX-N-29" d="M60 749L64 750Q69 750 74 750H86L114 726Q208 641 251 514T294 250Q294 182 284 119T261 12T224 -76T186 -143T145 -194T113 -227T90 -246Q87 -249 86 -250H74Q66 -250 63 -250T58 -247T55 -238Q56 -237 66 -225Q221 -64 221 250T66 725Q56 737 55 738Q55 746 60 749Z"></path><path id="MJX-1-TEX-N-3D" d="M56 347Q56 360 70 367H707Q722 359 722 347Q722 336 708 328L390 327H72Q56 332 56 347ZM56 153Q56 168 72 173H708Q722 163 722 153Q722 140 707 133H70Q56 140 56 153Z"></path><path id="MJX-1-TEX-N-2212" d="M84 237T84 250T98 270H679Q694 262 694 250T679 230H98Q84 237 84 250Z"></path><path id="MJX-1-TEX-D-1D53C" d="M12 666Q12 675 24 683H582Q590 680 593 672V588Q593 514 591 502T575 490Q567 490 563 495T555 517Q552 556 517 590Q486 623 445 634T340 648H282Q266 636 264 620T260 492V370H277Q329 375 358 391T404 439Q420 480 420 506Q420 529 436 529Q445 529 451 521Q455 517 455 361Q455 333 455 298T456 253Q456 217 453 207T437 197Q420 196 420 217Q420 240 406 270Q377 328 284 335H260V201Q261 174 261 134Q262 73 264 61T278 38Q281 36 282 35H331Q400 35 449 50Q571 93 602 179Q605 203 622 203Q629 203 634 197T640 183Q638 181 624 95T604 3L600 -1H24Q12 5 12 16Q12 35 51 35Q92 38 97 52Q102 60 102 341T97 632Q91 645 51 648Q12 648 12 666ZM137 341Q137 131 136 89T130 37Q129 36 129 35H235Q233 41 231 48L226 61V623L231 635L235 648H129Q132 641 133 638T135 603T137 517T137 341ZM557 603V648H504Q504 646 515 639Q527 634 542 619L557 603ZM420 317V397L406 383Q394 370 380 363L366 355Q373 350 382 346Q400 333 409 328L420 317ZM582 61L586 88Q585 88 582 83Q557 61 526 46L511 37L542 35H577Q577 36 578 39T580 49T582 61Z"></path><path id="MJX-1-TEX-I-1D45E" d="M33 157Q33 258 109 349T280 441Q340 441 372 389Q373 390 377 395T388 406T404 418Q438 442 450 442Q454 442 457 439T460 434Q460 425 391 149Q320 -135 320 -139Q320 -147 365 -148H390Q396 -156 396 -157T393 -175Q389 -188 383 -194H370Q339 -192 262 -192Q234 -192 211 -192T174 -192T157 -193Q143 -193 143 -185Q143 -182 145 -170Q149 -154 152 -151T172 -148Q220 -148 230 -141Q238 -136 258 -53T279 32Q279 33 272 29Q224 -10 172 -10Q117 -10 75 30T33 157ZM352 326Q329 405 277 405Q242 405 210 374T160 293Q131 214 119 129Q119 126 119 118T118 106Q118 61 136 44T179 26Q233 26 290 98L298 109L352 326Z"></path><path id="MJX-1-TEX-N-2C" d="M78 35T78 60T94 103T137 121Q165 121 187 96T210 8Q210 -27 201 -60T180 -117T154 -158T130 -185T117 -194Q113 -194 104 -185T95 -172Q95 -168 106 -156T131 -126T157 -76T173 -3V9L172 8Q170 7 167 6T161 3T152 1T140 0Q113 0 96 17Z"></path><path id="MJX-1-TEX-N-A0" d=""></path><path id="MJX-1-TEX-N-7B" d="M434 -231Q434 -244 428 -250H410Q281 -250 230 -184Q225 -177 222 -172T217 -161T213 -148T211 -133T210 -111T209 -84T209 -47T209 0Q209 21 209 53Q208 142 204 153Q203 154 203 155Q189 191 153 211T82 231Q71 231 68 234T65 250T68 266T82 269Q116 269 152 289T203 345Q208 356 208 377T209 529V579Q209 634 215 656T244 698Q270 724 324 740Q361 748 377 749Q379 749 390 749T408 750H428Q434 744 434 732Q434 719 431 716Q429 713 415 713Q362 710 332 689T296 647Q291 634 291 499V417Q291 370 288 353T271 314Q240 271 184 255L170 250L184 245Q202 239 220 230T262 196T290 137Q291 131 291 1Q291 -134 296 -147Q306 -174 339 -192T415 -213Q429 -213 431 -216Q434 -219 434 -231Z"></path><path id="MJX-1-TEX-I-1D45C" d="M201 -11Q126 -11 80 38T34 156Q34 221 64 279T146 380Q222 441 301 441Q333 441 341 440Q354 437 367 433T402 417T438 387T464 338T476 268Q476 161 390 75T201 -11ZM121 120Q121 70 147 48T206 26Q250 26 289 58T351 142Q360 163 374 216T388 308Q388 352 370 375Q346 405 306 405Q243 405 195 347Q158 303 140 230T121 120Z"></path><path id="MJX-1-TEX-I-1D456" d="M184 600Q184 624 203 642T247 661Q265 661 277 649T290 619Q290 596 270 577T226 557Q211 557 198 567T184 600ZM21 287Q21 295 30 318T54 369T98 420T158 442Q197 442 223 419T250 357Q250 340 236 301T196 196T154 83Q149 61 149 51Q149 26 166 26Q175 26 185 29T208 43T235 78T260 137Q263 149 265 151T282 153Q302 153 302 143Q302 135 293 112T268 61T223 11T161 -11Q129 -11 102 10T74 74Q74 91 79 106T122 220Q160 321 166 341T173 380Q173 404 156 404H154Q124 404 99 371T61 287Q60 286 59 284T58 281T56 279T53 278T49 278T41 278H27Q21 284 21 287Z"></path><path id="MJX-1-TEX-N-7D" d="M65 731Q65 745 68 747T88 750Q171 750 216 725T279 670Q288 649 289 635T291 501Q292 362 293 357Q306 312 345 291T417 269Q428 269 431 266T434 250T431 234T417 231Q380 231 345 210T298 157Q293 143 292 121T291 -28V-79Q291 -134 285 -156T256 -198Q202 -250 89 -250Q71 -250 68 -247T65 -230Q65 -224 65 -223T66 -218T69 -214T77 -213Q91 -213 108 -210T146 -200T183 -177T207 -139Q208 -134 209 3L210 139Q223 196 280 230Q315 247 330 250Q305 257 280 270Q225 304 212 352L210 362L209 498Q208 635 207 640Q195 680 154 696T77 713Q68 713 67 716T65 731Z"></path><path id="MJX-1-TEX-N-223C" d="M55 166Q55 241 101 304T222 367Q260 367 296 349T362 304T421 252T484 208T554 189Q616 189 655 236T694 338Q694 350 698 358T708 367Q722 367 722 334Q722 260 677 197T562 134H554Q517 134 481 152T414 196T355 248T292 293T223 311Q179 311 145 286Q109 257 96 218T80 156T69 133Q55 133 55 166Z"></path><path id="MJX-1-TEX-I-1D707" d="M58 -216Q44 -216 34 -208T23 -186Q23 -176 96 116T173 414Q186 442 219 442Q231 441 239 435T249 423T251 413Q251 401 220 279T187 142Q185 131 185 107V99Q185 26 252 26Q261 26 270 27T287 31T302 38T315 45T327 55T338 65T348 77T356 88T365 100L372 110L408 253Q444 395 448 404Q461 431 491 431Q504 431 512 424T523 412T525 402L449 84Q448 79 448 68Q448 43 455 35T476 26Q485 27 496 35Q517 55 537 131Q543 151 547 152Q549 153 557 153H561Q580 153 580 144Q580 138 575 117T555 63T523 13Q510 0 491 -8Q483 -10 467 -10Q446 -10 429 -4T402 11T385 29T376 44T374 51L368 45Q362 39 350 30T324 12T288 -4T246 -11Q199 -11 153 12L129 -85Q108 -167 104 -180T92 -202Q76 -216 58 -216Z"></path><path id="MJX-1-TEX-N-6F" d="M28 214Q28 309 93 378T250 448Q340 448 405 380T471 215Q471 120 407 55T250 -10Q153 -10 91 57T28 214ZM250 30Q372 30 372 193V225V250Q372 272 371 288T364 326T348 362T317 390T268 410Q263 411 252 411Q222 411 195 399Q152 377 139 338T126 246V226Q126 130 145 91Q177 30 250 30Z"></path><path id="MJX-1-TEX-N-6C" d="M42 46H56Q95 46 103 60V68Q103 77 103 91T103 124T104 167T104 217T104 272T104 329Q104 366 104 407T104 482T104 542T103 586T103 603Q100 622 89 628T44 637H26V660Q26 683 28 683L38 684Q48 685 67 686T104 688Q121 689 141 690T171 693T182 694H185V379Q185 62 186 60Q190 52 198 49Q219 46 247 46H263V0H255L232 1Q209 2 183 2T145 3T107 3T57 1L34 0H26V46H42Z"></path><path id="MJX-1-TEX-N-64" d="M376 495Q376 511 376 535T377 568Q377 613 367 624T316 637H298V660Q298 683 300 683L310 684Q320 685 339 686T376 688Q393 689 413 690T443 693T454 694H457V390Q457 84 458 81Q461 61 472 55T517 46H535V0Q533 0 459 -5T380 -11H373V44L365 37Q307 -11 235 -11Q158 -11 96 50T34 215Q34 315 97 378T244 442Q319 442 376 393V495ZM373 342Q328 405 260 405Q211 405 173 369Q146 341 139 305T131 211Q131 155 138 120T173 59Q203 26 251 26Q322 26 373 103V342Z"></path><path id="MJX-1-TEX-S4-5B" d="M269 -1249V1750H577V1677H342V-1176H577V-1249H269Z"></path><path id="MJX-1-TEX-N-31" d="M213 578L200 573Q186 568 160 563T102 556H83V602H102Q149 604 189 617T245 641T273 663Q275 666 285 666Q294 666 302 660V361L303 61Q310 54 315 52T339 48T401 46H427V0H416Q395 3 257 3Q121 3 100 0H88V46H114Q136 46 152 46T177 47T193 50T201 52T207 57T213 61V578Z"></path><path id="MJX-1-TEX-SO-2211" d="M61 748Q64 750 489 750H913L954 640Q965 609 976 579T993 533T999 516H979L959 517Q936 579 886 621T777 682Q724 700 655 705T436 710H319Q183 710 183 709Q186 706 348 484T511 259Q517 250 513 244L490 216Q466 188 420 134T330 27L149 -187Q149 -188 362 -188Q388 -188 436 -188T506 -189Q679 -189 778 -162T936 -43Q946 -27 959 6H999L913 -249L489 -250Q65 -250 62 -248Q56 -246 56 -239Q56 -234 118 -161Q186 -81 245 -11L428 206Q428 207 242 462L57 717L56 728Q56 744 61 748Z"></path><path id="MJX-1-TEX-I-1D43A" d="M50 252Q50 367 117 473T286 641T490 704Q580 704 633 653Q642 643 648 636T656 626L657 623Q660 623 684 649Q691 655 699 663T715 679T725 690L740 705H746Q760 705 760 698Q760 694 728 561Q692 422 692 421Q690 416 687 415T669 413H653Q647 419 647 422Q647 423 648 429T650 449T651 481Q651 552 619 605T510 659Q492 659 471 656T418 643T357 615T294 567T236 496T189 394T158 260Q156 242 156 221Q156 173 170 136T206 79T256 45T308 28T353 24Q407 24 452 47T514 106Q517 114 529 161T541 214Q541 222 528 224T468 227H431Q425 233 425 235T427 254Q431 267 437 273H454Q494 271 594 271Q634 271 659 271T695 272T707 272Q721 272 721 263Q721 261 719 249Q714 230 709 228Q706 227 694 227Q674 227 653 224Q646 221 643 215T629 164Q620 131 614 108Q589 6 586 3Q584 1 581 1Q571 1 553 21T530 52Q530 53 528 52T522 47Q448 -22 322 -22Q201 -22 126 55T50 252Z"></path><path id="MJX-1-TEX-N-7C" d="M139 -249H137Q125 -249 119 -235V251L120 737Q130 750 139 750Q152 750 159 735V-235Q151 -249 141 -249H139Z"></path><path id="MJX-1-TEX-LO-2211" d="M60 948Q63 950 665 950H1267L1325 815Q1384 677 1388 669H1348L1341 683Q1320 724 1285 761Q1235 809 1174 838T1033 881T882 898T699 902H574H543H251L259 891Q722 258 724 252Q725 250 724 246Q721 243 460 -56L196 -356Q196 -357 407 -357Q459 -357 548 -357T676 -358Q812 -358 896 -353T1063 -332T1204 -283T1307 -196Q1328 -170 1348 -124H1388Q1388 -125 1381 -145T1356 -210T1325 -294L1267 -449L666 -450Q64 -450 61 -448Q55 -446 55 -439Q55 -437 57 -433L590 177Q590 178 557 222T452 366T322 544L56 909L55 924Q55 945 60 948Z"></path><path id="MJX-1-TEX-I-1D461" d="M26 385Q19 392 19 395Q19 399 22 411T27 425Q29 430 36 430T87 431H140L159 511Q162 522 166 540T173 566T179 586T187 603T197 615T211 624T229 626Q247 625 254 615T261 596Q261 589 252 549T232 470L222 433Q222 431 272 431H323Q330 424 330 420Q330 398 317 385H210L174 240Q135 80 135 68Q135 26 162 26Q197 26 230 60T283 144Q285 150 288 151T303 153H307Q322 153 322 145Q322 142 319 133Q314 117 301 95T267 48T216 6T155 -11Q125 -11 98 4T59 56Q57 64 57 83V101L92 241Q127 382 128 383Q128 385 77 385H26Z"></path><path id="MJX-1-TEX-I-1D45F" d="M21 287Q22 290 23 295T28 317T38 348T53 381T73 411T99 433T132 442Q161 442 183 430T214 408T225 388Q227 382 228 382T236 389Q284 441 347 441H350Q398 441 422 400Q430 381 430 363Q430 333 417 315T391 292T366 288Q346 288 334 299T322 328Q322 376 378 392Q356 405 342 405Q286 405 239 331Q229 315 224 298T190 165Q156 25 151 16Q138 -11 108 -11Q95 -11 87 -5T76 7T74 17Q74 30 114 189T154 366Q154 405 128 405Q107 405 92 377T68 316T57 280Q55 278 41 278H27Q21 284 21 287Z"></path><path id="MJX-1-TEX-I-1D440" d="M289 629Q289 635 232 637Q208 637 201 638T194 648Q194 649 196 659Q197 662 198 666T199 671T201 676T203 679T207 681T212 683T220 683T232 684Q238 684 262 684T307 683Q386 683 398 683T414 678Q415 674 451 396L487 117L510 154Q534 190 574 254T662 394Q837 673 839 675Q840 676 842 678T846 681L852 683H948Q965 683 988 683T1017 684Q1051 684 1051 673Q1051 668 1048 656T1045 643Q1041 637 1008 637Q968 636 957 634T939 623Q936 618 867 340T797 59Q797 55 798 54T805 50T822 48T855 46H886Q892 37 892 35Q892 19 885 5Q880 0 869 0Q864 0 828 1T736 2Q675 2 644 2T609 1Q592 1 592 11Q592 13 594 25Q598 41 602 43T625 46Q652 46 685 49Q699 52 704 61Q706 65 742 207T813 490T848 631L654 322Q458 10 453 5Q451 4 449 3Q444 0 433 0Q418 0 415 7Q413 11 374 317L335 624L267 354Q200 88 200 79Q206 46 272 46H282Q288 41 289 37T286 19Q282 3 278 1Q274 0 267 0Q265 0 255 0T221 1T157 2Q127 2 95 1T58 0Q43 0 39 2T35 11Q35 13 38 25T43 40Q45 46 65 46Q135 46 154 86Q158 92 223 354T289 629Z"></path><path id="MJX-1-TEX-I-1D434" d="M208 74Q208 50 254 46Q272 46 272 35Q272 34 270 22Q267 8 264 4T251 0Q249 0 239 0T205 1T141 2Q70 2 50 0H42Q35 7 35 11Q37 38 48 46H62Q132 49 164 96Q170 102 345 401T523 704Q530 716 547 716H555H572Q578 707 578 706L606 383Q634 60 636 57Q641 46 701 46Q726 46 726 36Q726 34 723 22Q720 7 718 4T704 0Q701 0 690 0T651 1T578 2Q484 2 455 0H443Q437 6 437 9T439 27Q443 40 445 43L449 46H469Q523 49 533 63L521 213H283L249 155Q208 86 208 74ZM516 260Q516 271 504 416T490 562L463 519Q447 492 400 412L310 260L413 259Q516 259 516 260Z"></path><path id="MJX-1-TEX-N-67" d="M329 409Q373 453 429 453Q459 453 472 434T485 396Q485 382 476 371T449 360Q416 360 412 390Q410 404 415 411Q415 412 416 414V415Q388 412 363 393Q355 388 355 386Q355 385 359 381T368 369T379 351T388 325T392 292Q392 230 343 187T222 143Q172 143 123 171Q112 153 112 133Q112 98 138 81Q147 75 155 75T227 73Q311 72 335 67Q396 58 431 26Q470 -13 470 -72Q470 -139 392 -175Q332 -206 250 -206Q167 -206 107 -175Q29 -140 29 -75Q29 -39 50 -15T92 18L103 24Q67 55 67 108Q67 155 96 193Q52 237 52 292Q52 355 102 398T223 442Q274 442 318 416L329 409ZM299 343Q294 371 273 387T221 404Q192 404 171 388T145 343Q142 326 142 292Q142 248 149 227T179 192Q196 182 222 182Q244 182 260 189T283 207T294 227T299 242Q302 258 302 292T299 343ZM403 -75Q403 -50 389 -34T348 -11T299 -2T245 0H218Q151 0 138 -6Q118 -15 107 -34T95 -74Q95 -84 101 -97T122 -127T170 -155T250 -167Q319 -167 361 -139T403 -75Z"></path><path id="MJX-1-TEX-N-2061" d=""></path><path id="MJX-1-TEX-I-1D70B" d="M132 -11Q98 -11 98 22V33L111 61Q186 219 220 334L228 358H196Q158 358 142 355T103 336Q92 329 81 318T62 297T53 285Q51 284 38 284Q19 284 19 294Q19 300 38 329T93 391T164 429Q171 431 389 431Q549 431 553 430Q573 423 573 402Q573 371 541 360Q535 358 472 358H408L405 341Q393 269 393 222Q393 170 402 129T421 65T431 37Q431 20 417 5T381 -10Q370 -10 363 -7T347 17T331 77Q330 86 330 121Q330 170 339 226T357 318T367 358H269L268 354Q268 351 249 275T206 114T175 17Q164 -11 132 -11Z"></path><path id="MJX-1-TEX-N-2223" d="M139 -249H137Q125 -249 119 -235V251L120 737Q130 750 139 750Q152 750 159 735V-235Q151 -249 141 -249H139Z"></path><path id="MJX-1-TEX-N-3C" d="M694 -11T694 -19T688 -33T678 -40Q671 -40 524 29T234 166L90 235Q83 240 83 250Q83 261 91 266Q664 540 678 540Q681 540 687 534T694 519T687 505Q686 504 417 376L151 250L417 124Q686 -4 687 -5Q694 -11 694 -19Z"></path><path id="MJX-1-TEX-S4-5D" d="M5 1677V1750H313V-1249H5V-1176H240V1677H5Z"></path></defs><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="scale(1,-1)"><g data-mml-node="math"><g data-mml-node="TeXAtom" data-mjx-texclass="ORD"><g data-mml-node="mi"><use data-c="4C" xlink:href="#MJX-1-TEX-C-4C"></use></g></g><g data-mml-node="mo" transform="translate(690,0)"><use data-c="28" xlink:href="#MJX-1-TEX-N-28"></use></g><g data-mml-node="mi" transform="translate(1079,0)"><use data-c="1D703" xlink:href="#MJX-1-TEX-I-1D703"></use></g><g data-mml-node="mo" transform="translate(1548,0)"><use data-c="29" xlink:href="#MJX-1-TEX-N-29"></use></g><g data-mml-node="mo" transform="translate(2214.8,0)"><use data-c="3D" xlink:href="#MJX-1-TEX-N-3D"></use></g><g data-mml-node="mo" transform="translate(3270.6,0)"><use data-c="2212" xlink:href="#MJX-1-TEX-N-2212"></use></g><g data-mml-node="mstyle" transform="translate(4048.6,0)"><g data-mml-node="mspace"></g></g><g data-mml-node="msub" transform="translate(4215.6,0)"><g data-mml-node="TeXAtom" data-mjx-texclass="ORD"><g data-mml-node="mi"><use data-c="1D53C" xlink:href="#MJX-1-TEX-D-1D53C"></use></g></g><g data-mml-node="TeXAtom" transform="translate(700,-176.7) scale(0.707)" data-mjx-texclass="ORD"><g data-mml-node="mi"><use data-c="1D45E" xlink:href="#MJX-1-TEX-I-1D45E"></use></g><g data-mml-node="mo" transform="translate(460,0)"><use data-c="2C" xlink:href="#MJX-1-TEX-N-2C"></use></g><g data-mml-node="mtext" transform="translate(738,0)"><use data-c="A0" xlink:href="#MJX-1-TEX-N-A0"></use></g><g data-mml-node="mo" transform="translate(988,0)"><use data-c="7B" xlink:href="#MJX-1-TEX-N-7B"></use></g><g data-mml-node="msub" transform="translate(1488,0)"><g data-mml-node="mi"><use data-c="1D45C" xlink:href="#MJX-1-TEX-I-1D45C"></use></g><g data-mml-node="mi" transform="translate(518,-150) scale(0.707)"><use data-c="1D456" xlink:href="#MJX-1-TEX-I-1D456"></use></g></g><g data-mml-node="mo" transform="translate(2300,0)"><use data-c="7D" xlink:href="#MJX-1-TEX-N-7D"></use></g><g data-mml-node="mo" transform="translate(2800,0)"><use data-c="223C" xlink:href="#MJX-1-TEX-N-223C"></use></g><g data-mml-node="msub" transform="translate(3578,0)"><g data-mml-node="mi"><use data-c="1D707" xlink:href="#MJX-1-TEX-I-1D707"></use></g><g data-mml-node="TeXAtom" transform="translate(636,-150) scale(0.707)" data-mjx-texclass="ORD"><g data-mml-node="msub"><g data-mml-node="mi"><use data-c="1D703" xlink:href="#MJX-1-TEX-I-1D703"></use></g><g data-mml-node="TeXAtom" data-mjx-texclass="ORD" transform="translate(502,-340.4)"><g data-mml-node="mtext"><use data-c="6F" xlink:href="#MJX-1-TEX-N-6F"></use><use data-c="6C" xlink:href="#MJX-1-TEX-N-6C" transform="translate(500,0)"></use><use data-c="64" xlink:href="#MJX-1-TEX-N-64" transform="translate(778,0)"></use></g></g></g></g></g></g></g><g data-mml-node="mrow" transform="translate(9090.3,0)"><g data-mml-node="mo" transform="translate(0 -0.5)"><use data-c="5B" xlink:href="#MJX-1-TEX-S4-5B"></use></g><g data-mml-node="mfrac" transform="translate(583,0)"><g data-mml-node="mn" transform="translate(1880.6,676)"><use data-c="31" xlink:href="#MJX-1-TEX-N-31"></use></g><g data-mml-node="mrow" transform="translate(220,-935.6)"><g data-mml-node="munderover"><g data-mml-node="mo"><use data-c="2211" xlink:href="#MJX-1-TEX-SO-2211"></use></g><g data-mml-node="TeXAtom" transform="translate(1089,477.1) scale(0.707)" data-mjx-texclass="ORD"><g data-mml-node="mi"><use data-c="1D43A" xlink:href="#MJX-1-TEX-I-1D43A"></use></g></g><g data-mml-node="TeXAtom" transform="translate(1089,-285.4) scale(0.707)" data-mjx-texclass="ORD"><g data-mml-node="mi"><use data-c="1D456" xlink:href="#MJX-1-TEX-I-1D456"></use></g><g data-mml-node="mo" transform="translate(345,0)"><use data-c="3D" xlink:href="#MJX-1-TEX-N-3D"></use></g><g data-mml-node="mn" transform="translate(1123,0)"><use data-c="31" xlink:href="#MJX-1-TEX-N-31"></use></g></g></g><g data-mml-node="mo" transform="translate(2453.3,0) translate(0 -0.5)"><use data-c="7C" xlink:href="#MJX-1-TEX-N-7C"></use></g><g data-mml-node="msub" transform="translate(2731.3,0)"><g data-mml-node="mi"><use data-c="1D45C" xlink:href="#MJX-1-TEX-I-1D45C"></use></g><g data-mml-node="mi" transform="translate(518,-150) scale(0.707)"><use data-c="1D456" xlink:href="#MJX-1-TEX-I-1D456"></use></g></g><g data-mml-node="mo" transform="translate(3543.3,0) translate(0 -0.5)"><use data-c="7C" xlink:href="#MJX-1-TEX-N-7C"></use></g></g><rect width="4021.3" height="60" x="120" y="220"></rect></g><g data-mml-node="munderover" transform="translate(5010.9,0)"><g data-mml-node="mo"><use data-c="2211" xlink:href="#MJX-1-TEX-LO-2211"></use></g><g data-mml-node="TeXAtom" transform="translate(148.2,-1087.9) scale(0.707)" data-mjx-texclass="ORD"><g data-mml-node="mi"><use data-c="1D456" xlink:href="#MJX-1-TEX-I-1D456"></use></g><g data-mml-node="mo" transform="translate(345,0)"><use data-c="3D" xlink:href="#MJX-1-TEX-N-3D"></use></g><g data-mml-node="mn" transform="translate(1123,0)"><use data-c="31" xlink:href="#MJX-1-TEX-N-31"></use></g></g><g data-mml-node="TeXAtom" transform="translate(444.1,1150) scale(0.707)" data-mjx-texclass="ORD"><g data-mml-node="mi"><use data-c="1D43A" xlink:href="#MJX-1-TEX-I-1D43A"></use></g></g></g><g data-mml-node="munderover" transform="translate(6621.6,0)"><g data-mml-node="mo"><use data-c="2211" xlink:href="#MJX-1-TEX-LO-2211"></use></g><g data-mml-node="TeXAtom" transform="translate(142.5,-1087.9) scale(0.707)" data-mjx-texclass="ORD"><g data-mml-node="mi"><use data-c="1D461" xlink:href="#MJX-1-TEX-I-1D461"></use></g><g data-mml-node="mo" transform="translate(361,0)"><use data-c="3D" xlink:href="#MJX-1-TEX-N-3D"></use></g><g data-mml-node="mn" transform="translate(1139,0)"><use data-c="31" xlink:href="#MJX-1-TEX-N-31"></use></g></g><g data-mml-node="TeXAtom" transform="translate(238.4,1237.4) scale(0.707)" data-mjx-texclass="ORD"><g data-mml-node="mo" transform="translate(0 -0.5)"><use data-c="7C" xlink:href="#MJX-1-TEX-N-7C"></use></g><g data-mml-node="msub" transform="translate(278,0)"><g data-mml-node="mi"><use data-c="1D45C" xlink:href="#MJX-1-TEX-I-1D45C"></use></g><g data-mml-node="mi" transform="translate(518,-150) scale(0.707)"><use data-c="1D456" xlink:href="#MJX-1-TEX-I-1D456"></use></g></g><g data-mml-node="mo" transform="translate(1090,0) translate(0 -0.5)"><use data-c="7C" xlink:href="#MJX-1-TEX-N-7C"></use></g></g></g><g data-mml-node="msub" transform="translate(8232.3,0)"><g data-mml-node="mi"><use data-c="1D45F" xlink:href="#MJX-1-TEX-I-1D45F"></use></g><g data-mml-node="TeXAtom" transform="translate(484,-150) scale(0.707)" data-mjx-texclass="ORD"><g data-mml-node="mi"><use data-c="1D456" xlink:href="#MJX-1-TEX-I-1D456"></use></g><g data-mml-node="mo" transform="translate(345,0)"><use data-c="2C" xlink:href="#MJX-1-TEX-N-2C"></use></g><g data-mml-node="mi" transform="translate(623,0)"><use data-c="1D461" xlink:href="#MJX-1-TEX-I-1D461"></use></g></g></g><g data-mml-node="mstyle" transform="translate(9462,0)"><g data-mml-node="mspace"></g></g><g data-mml-node="msub" transform="translate(9629,0)"><g data-mml-node="mi"><use data-c="1D440" xlink:href="#MJX-1-TEX-I-1D440"></use></g><g data-mml-node="TeXAtom" transform="translate(1003,-150) scale(0.707)" data-mjx-texclass="ORD"><g data-mml-node="mi"><use data-c="1D456" xlink:href="#MJX-1-TEX-I-1D456"></use></g><g data-mml-node="mo" transform="translate(345,0)"><use data-c="2C" xlink:href="#MJX-1-TEX-N-2C"></use></g><g data-mml-node="mi" transform="translate(623,0)"><use data-c="1D461" xlink:href="#MJX-1-TEX-I-1D461"></use></g></g></g><g data-mml-node="mstyle" transform="translate(11377.8,0)"><g data-mml-node="mspace"></g></g><g data-mml-node="msub" transform="translate(11544.8,0)"><g data-mml-node="mi"><use data-c="1D434" xlink:href="#MJX-1-TEX-I-1D434"></use></g><g data-mml-node="mi" transform="translate(783,-150) scale(0.707)"><use data-c="1D456" xlink:href="#MJX-1-TEX-I-1D456"></use></g></g><g data-mml-node="mi" transform="translate(12788.5,0)"><use data-c="6C" xlink:href="#MJX-1-TEX-N-6C"></use><use data-c="6F" xlink:href="#MJX-1-TEX-N-6F" transform="translate(278,0)"></use><use data-c="67" xlink:href="#MJX-1-TEX-N-67" transform="translate(778,0)"></use></g><g data-mml-node="mo" transform="translate(14066.5,0)"><use data-c="2061" xlink:href="#MJX-1-TEX-N-2061"></use></g><g data-mml-node="msub" transform="translate(14233.1,0)"><g data-mml-node="mi"><use data-c="1D70B" xlink:href="#MJX-1-TEX-I-1D70B"></use></g><g data-mml-node="mi" transform="translate(603,-150) scale(0.707)"><use data-c="1D703" xlink:href="#MJX-1-TEX-I-1D703"></use></g></g><g data-mml-node="mo" transform="translate(15217.8,0)"><use data-c="28" xlink:href="#MJX-1-TEX-N-28"></use></g><g data-mml-node="msub" transform="translate(15606.8,0)"><g data-mml-node="mi"><use data-c="1D45C" xlink:href="#MJX-1-TEX-I-1D45C"></use></g><g data-mml-node="TeXAtom" transform="translate(518,-150) scale(0.707)" data-mjx-texclass="ORD"><g data-mml-node="mi"><use data-c="1D456" xlink:href="#MJX-1-TEX-I-1D456"></use></g><g data-mml-node="mo" transform="translate(345,0)"><use data-c="2C" xlink:href="#MJX-1-TEX-N-2C"></use></g><g data-mml-node="mi" transform="translate(623,0)"><use data-c="1D461" xlink:href="#MJX-1-TEX-I-1D461"></use></g></g></g><g data-mml-node="mo" transform="translate(17148.3,0)"><use data-c="2223" xlink:href="#MJX-1-TEX-N-2223"></use></g><g data-mml-node="mi" transform="translate(17704.1,0)"><use data-c="1D45E" xlink:href="#MJX-1-TEX-I-1D45E"></use></g><g data-mml-node="mo" transform="translate(18164.1,0)"><use data-c="2C" xlink:href="#MJX-1-TEX-N-2C"></use></g><g data-mml-node="msub" transform="translate(18608.8,0)"><g data-mml-node="mi"><use data-c="1D45C" xlink:href="#MJX-1-TEX-I-1D45C"></use></g><g data-mml-node="TeXAtom" transform="translate(518,-150) scale(0.707)" data-mjx-texclass="ORD"><g data-mml-node="mi"><use data-c="1D456" xlink:href="#MJX-1-TEX-I-1D456"></use></g><g data-mml-node="mo" transform="translate(345,0)"><use data-c="2C" xlink:href="#MJX-1-TEX-N-2C"></use></g><g data-mml-node="mo" transform="translate(623,0)"><use data-c="3C" xlink:href="#MJX-1-TEX-N-3C"></use></g><g data-mml-node="mi" transform="translate(1401,0)"><use data-c="1D461" xlink:href="#MJX-1-TEX-I-1D461"></use></g></g></g><g data-mml-node="mo" transform="translate(20422.7,0)"><use data-c="29" xlink:href="#MJX-1-TEX-N-29"></use></g><g data-mml-node="mo" transform="translate(20811.7,0) translate(0 -0.5)"><use data-c="5D" xlink:href="#MJX-1-TEX-S4-5D"></use></g></g></g></g></svg></mjx-container></div>
+      <p>세 조각으로 읽으면 쉽습니다. <b>롤아웃</b>(<mjx-container class="MathJax" jax="SVG"><svg style="vertical-align: -0.489ex;" xmlns="http://www.w3.org/2000/svg" width="1.364ex" height="1.489ex" role="img" focusable="false" viewBox="0 -442 603 658" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><path id="MJX-5-TEX-I-1D707" d="M58 -216Q44 -216 34 -208T23 -186Q23 -176 96 116T173 414Q186 442 219 442Q231 441 239 435T249 423T251 413Q251 401 220 279T187 142Q185 131 185 107V99Q185 26 252 26Q261 26 270 27T287 31T302 38T315 45T327 55T338 65T348 77T356 88T365 100L372 110L408 253Q444 395 448 404Q461 431 491 431Q504 431 512 424T523 412T525 402L449 84Q448 79 448 68Q448 43 455 35T476 26Q485 27 496 35Q517 55 537 131Q543 151 547 152Q549 153 557 153H561Q580 153 580 144Q580 138 575 117T555 63T523 13Q510 0 491 -8Q483 -10 467 -10Q446 -10 429 -4T402 11T385 29T376 44T374 51L368 45Q362 39 350 30T324 12T288 -4T246 -11Q199 -11 153 12L129 -85Q108 -167 104 -180T92 -202Q76 -216 58 -216Z"></path></defs><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="scale(1,-1)"><g data-mml-node="math"><g data-mml-node="mi"><use data-c="1D707" xlink:href="#MJX-5-TEX-I-1D707"></use></g></g></g></svg></mjx-container>가 그룹 16개 생성), <b>채점</b>(<mjx-container class="MathJax" jax="SVG"><svg style="vertical-align: -0.357ex;" xmlns="http://www.w3.org/2000/svg" width="2.437ex" height="1.977ex" role="img" focusable="false" viewBox="0 -716 1077 873.8" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><path id="MJX-6-TEX-I-1D434" d="M208 74Q208 50 254 46Q272 46 272 35Q272 34 270 22Q267 8 264 4T251 0Q249 0 239 0T205 1T141 2Q70 2 50 0H42Q35 7 35 11Q37 38 48 46H62Q132 49 164 96Q170 102 345 401T523 704Q530 716 547 716H555H572Q578 707 578 706L606 383Q634 60 636 57Q641 46 701 46Q726 46 726 36Q726 34 723 22Q720 7 718 4T704 0Q701 0 690 0T651 1T578 2Q484 2 455 0H443Q437 6 437 9T439 27Q443 40 445 43L449 46H469Q523 49 533 63L521 213H283L249 155Q208 86 208 74ZM516 260Q516 271 504 416T490 562L463 519Q447 492 400 412L310 260L413 259Q516 259 516 260Z"></path><path id="MJX-6-TEX-I-1D456" d="M184 600Q184 624 203 642T247 661Q265 661 277 649T290 619Q290 596 270 577T226 557Q211 557 198 567T184 600ZM21 287Q21 295 30 318T54 369T98 420T158 442Q197 442 223 419T250 357Q250 340 236 301T196 196T154 83Q149 61 149 51Q149 26 166 26Q175 26 185 29T208 43T235 78T260 137Q263 149 265 151T282 153Q302 153 302 143Q302 135 293 112T268 61T223 11T161 -11Q129 -11 102 10T74 74Q74 91 79 106T122 220Q160 321 166 341T173 380Q173 404 156 404H154Q124 404 99 371T61 287Q60 286 59 284T58 281T56 279T53 278T49 278T41 278H27Q21 284 21 287Z"></path></defs><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="scale(1,-1)"><g data-mml-node="math"><g data-mml-node="msub"><g data-mml-node="mi"><use data-c="1D434" xlink:href="#MJX-6-TEX-I-1D434"></use></g><g data-mml-node="mi" transform="translate(783,-150) scale(0.707)"><use data-c="1D456" xlink:href="#MJX-6-TEX-I-1D456"></use></g></g></g></g></svg></mjx-container>를 정밀하게 만드는 데 연산 투입), <b>학습</b>(프롬프트 단위로 평균한 gradient). <mjx-container class="MathJax" jax="SVG"><svg style="vertical-align: -0.025ex;" xmlns="http://www.w3.org/2000/svg" width="1.02ex" height="1.025ex" role="img" focusable="false" viewBox="0 -442 451 453" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><path id="MJX-7-TEX-I-1D45F" d="M21 287Q22 290 23 295T28 317T38 348T53 381T73 411T99 433T132 442Q161 442 183 430T214 408T225 388Q227 382 228 382T236 389Q284 441 347 441H350Q398 441 422 400Q430 381 430 363Q430 333 417 315T391 292T366 288Q346 288 334 299T322 328Q322 376 378 392Q356 405 342 405Q286 405 239 331Q229 315 224 298T190 165Q156 25 151 16Q138 -11 108 -11Q95 -11 87 -5T76 7T74 17Q74 30 114 189T154 366Q154 405 128 405Q107 405 92 377T68 316T57 280Q55 278 41 278H27Q21 284 21 287Z"></path></defs><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="scale(1,-1)"><g data-mml-node="math"><g data-mml-node="mi"><use data-c="1D45F" xlink:href="#MJX-7-TEX-I-1D45F"></use></g></g></g></svg></mjx-container>은 학습 정책과 롤아웃 정책의 확률비, <mjx-container class="MathJax" jax="SVG"><svg style="vertical-align: 0;" xmlns="http://www.w3.org/2000/svg" width="2.378ex" height="1.545ex" role="img" focusable="false" viewBox="0 -683 1051 683" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><path id="MJX-8-TEX-I-1D440" d="M289 629Q289 635 232 637Q208 637 201 638T194 648Q194 649 196 659Q197 662 198 666T199 671T201 676T203 679T207 681T212 683T220 683T232 684Q238 684 262 684T307 683Q386 683 398 683T414 678Q415 674 451 396L487 117L510 154Q534 190 574 254T662 394Q837 673 839 675Q840 676 842 678T846 681L852 683H948Q965 683 988 683T1017 684Q1051 684 1051 673Q1051 668 1048 656T1045 643Q1041 637 1008 637Q968 636 957 634T939 623Q936 618 867 340T797 59Q797 55 798 54T805 50T822 48T855 46H886Q892 37 892 35Q892 19 885 5Q880 0 869 0Q864 0 828 1T736 2Q675 2 644 2T609 1Q592 1 592 11Q592 13 594 25Q598 41 602 43T625 46Q652 46 685 49Q699 52 704 61Q706 65 742 207T813 490T848 631L654 322Q458 10 453 5Q451 4 449 3Q444 0 433 0Q418 0 415 7Q413 11 374 317L335 624L267 354Q200 88 200 79Q206 46 272 46H282Q288 41 289 37T286 19Q282 3 278 1Q274 0 267 0Q265 0 255 0T221 1T157 2Q127 2 95 1T58 0Q43 0 39 2T35 11Q35 13 38 25T43 40Q45 46 65 46Q135 46 154 86Q158 92 223 354T289 629Z"></path></defs><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="scale(1,-1)"><g data-mml-node="math"><g data-mml-node="mi"><use data-c="1D440" xlink:href="#MJX-8-TEX-I-1D440"></use></g></g></g></svg></mjx-container>은 토큰 마스크입니다.</p>
+      <ul class="tight">
+        <li><b>Partial rollout</b>: 배치가 차면 진행 중인 궤적을 멈췄다가 다음 단계에서 이어서 생성. 대가는 정책이 바뀔 때마다 KV를 다시 채우는 re-prefill이고, 큰 배치가 이 비용을 나눠 냅니다.</li>
+        <li><b>학습-추론 일치</b>: routing replay(R3)와 top-p 후보 집합 replay</li>
+        <li><b>Dynamic sampler</b>: 전부 통과·전부 실패 그룹을 걸러 모든 샘플이 gradient를 갖게 함</li>
+        <li><b>Sample Mixer</b>: 롤아웃 시간이 제각각인 과제들 사이에서 배치 구성을 목표대로 유지</li>
+      </ul>
+
+      <h3>"배치가 찼다"는 것</h3>
+      <p>학습에 쓸 <b>수락된 그룹</b>이 데이터 소스마다 목표 수만큼 모인 순간입니다(리포트 6.2절의 batch yield). 롤아웃이 모두 끝났다는 뜻이 아닙니다. 수락률이 1보다 낮으니 목표보다 훨씬 많이 생성하고, 그 순간에도 긴 롤아웃 상당수가 생성 중입니다.</p>
+      <ol class="tight">
+        <li>모든 소스가 스케줄링 가중치대로 생성합니다. 할당량을 채운 소스도 멈추지 않고(목표 항), 못 채운 소스가 우선권을 받습니다(부족분 항).</li>
+        <li>모든 소스가 할당량을 채우면 진행 중인 궤적을 <b>소스와 관계없이 전부</b> 멈춥니다.</li>
+        <li>학습하고 가중치를 갱신합니다.</li>
+        <li>멈췄던 궤적을 새 정책으로 이어서 생성합니다(KV re-prefill). 초과로 수락된 그룹은 다음 스텝으로 이월됩니다.</li>
+      </ol>
+      <div class="est">
+        <div class="est-h"><span class="est-tag">추정</span><b>"fully asynchronous"의 실제 의미: colocate + partial rollout</b></div>
+        <p>보통 비동기 RL은 생성과 학습이 따로 동시에 도는 구조를 말합니다. 이 런은 그렇지 않고, 같은 자원에서 <b>생성과 학습을 번갈아</b> 돌린 것으로 보입니다.</p>
+        <ul>
+          <li>4.1절: 진행 중인 궤적을 멈췄다가 "<i>resume them in the next rollout phase</i>". 단계가 나뉘어 있다는 뜻입니다.</li>
+          <li>6.3절: 롤아웃 시간을 "<i>excluding pauses between training steps</i>"로 정의합니다.</li>
+          <li>그림 16: 스케줄링 시뮬레이션에서 학습 시간을 뺍니다.</li>
+          <li>6.4절: optimizer 상태를 CPU에 두고 업데이트 때만 복사합니다. 같은 GPU에서 생성할 때 HBM을 비우는 colocate 기법입니다.</li>
+          <li>공개 대시보드: 스텝 시간이 생성 시간과 학습 시간의 합과 98% 일치합니다(pro 중앙값 0.979). 대시보드의 생성 시간이 "트레이너가 기다린 시간"이라면 비동기에서도 성립하는 식이라 단독 근거로는 약합니다.</li>
+        </ul>
+        <p>리포트가 비동기라 부를 만한 건 세 가지입니다. 한 궤적이 여러 정책 버전(최대 4)에 걸치는 것, 그룹이 따로따로 끝나는 것, grader가 생성과 나란히 도는 것. 흔히 말하는 semi-async에 가깝습니다.</p>
+      </div>
+    </section>
+
+    <!-- RL ENV -->
+    <section id="rl-env">
+      <div class="chap">리포트 4.2절</div>
+      <h2>RL 축 ②: 환경과 하니스를 넓힌다</h2>
+      <p class="q-line">좋은 RL 환경의 조건은 셋입니다. 실제 과제를 닮을 것, 대규모로 재현 가능할 것, 보상이 과제 목표와 맞을 것. 리포트는 특히 세 번째, 감독의 질에 공을 들입니다.</p>
+
+      <div class="grid2">
+        <div class="box">
+          <span class="tag">코드 에이전트</span>
+          <h4>다섯 갈래로 과제를 만들고 두 번 검증</h4>
+          <ul>
+            <li>합성: GitHub PR·이슈, 사내 개발 요청(vibe coding 포함), 상세 명세 구현, 기존 코드에서 기능 역추출(CodeMidas), 장기 엔지니어링 과제 + 공개·구매 데이터</li>
+            <li>정확성: 과제마다 에이전트가 4번 풀고, 감사 에이전트가 명세 기준으로 판단해 보상과 어긋나는 거짓 양성·거짓 음성을 찾음</li>
+            <li>안정성: 참조 패치 전후 F2P·P2P 테스트 결과가 8번 재실행에서 일관돼야 통과</li>
+          </ul>
+        </div>
+        <div class="box">
+          <span class="tag">범용 에이전트</span>
+          <h4>로컬 모의 소프트웨어 위의 실무</h4>
+          <ul>
+            <li>실제 파일을 모으고, 멀티에이전트가 소프트웨어 mock을 만들어 모든 상태를 로컬에 두고 초기화 가능하게 함</li>
+            <li>채점은 원자적 이진 루브릭: 코드 검사(DB 값, 형식) + LLM 검사(열린 내용)</li>
+            <li>여러 능력대 모델의 롤아웃을 검토해 너무 엄격하거나 느슨한 항목을 고치고, 관계없는 파일 변경을 잡는 부정 검사 추가</li>
+            <li>RL 중 채점은 자체 호스팅한 MiMo-V2.6-SFT</li>
+          </ul>
+        </div>
+        <div class="box">
+          <span class="tag">시각 에이전트</span>
+          <h4>디자인과 복제, 두 종류</h4>
+          <ul>
+            <li>열린 디자인: 동작·지시 준수·레이아웃·기본 미감을 개별 루브릭으로 다진 뒤, 같은 질의의 결과물을 그룹으로 비교해 강약을 가림</li>
+            <li>고정밀 복제: 픽셀 유사도 같은 규칙 지표 + LLM 종합 판정</li>
+          </ul>
+        </div>
+        <div class="box">
+          <span class="tag">사이버보안</span>
+          <h4>"그 버그"를 정확히 재현했는가</h4>
+          <ul>
+            <li>OSS-Fuzz의 수만 건 확인된 취약점. 에이전트가 특정 버그를 터뜨리는 입력을 만듦</li>
+            <li>판정: sanitizer 보고서의 취약점 종류와 최상위 프로젝트 스택 프레임이 둘 다 문자열로 일치해야 통과. 결정적이고 싸며 LLM 판정의 흔들림이 없음</li>
+            <li>CyberGym과 달리 컴파일된 하니스 바이너리를 주어 디버거 기반 분석을 허용</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>Multi-harness: 한 하니스에 길들지 않게</h3>
+      <p>Codex 같은 실제 제품 하니스는 보상과 무관한 안전장치와 지시문이 많아 credit assignment가 흐려지고, 모듈이 엮여 있어 하나만 바꿔 실험할 수 없습니다. 그래서 시스템 프롬프트·도구·문맥 관리만 있는 최소 agent loop에서 출발해, 과제별로 조합을 바꾼 mini-harness들을 만들었습니다. 효과는 30스텝 런에서 확인됩니다. 학습에 안 쓴 codex, claude code, mini-swe-agent의 DeepSWE 평균이 약 50%에서 66%로 올랐고, 학습 하니스와의 격차도 줄었습니다.</p>
+
+      <h3>Reward hacking: 학습 밖에서 먼저 막는다</h3>
+      <p>레포 수리 과제에서 가장 흔한 편법은 <b>정답 유출</b>입니다. 버그 리포트에서 수정을 끌어내는 대신, 이미 공개된 수정을 어딘가에서 가져옵니다. 리포트 표 2의 실제 사례입니다.</p>
+      <div class="hack-cases">
+        <div class="hack-case"><b>새 버전 설치해 읽기</b><div class="say">pytest 과제에서 <q>changelog나 GitHub에 더 최신 수정이 있는지 보자</q> → <code>pip install pytest==5.4.3</code></div></div>
+        <div class="hack-case"><b>upstream 파일 받기</b><div class="say">Astropy 과제에서 <q>GitHub raw URL에서 파일을 직접 보자</q> → <code>curl .../astropy/timeseries/core.py</code></div></div>
+        <div class="hack-case"><b>upstream clone</b><div class="say">Matplotlib 과제에서 최신 레포를 clone해 수정된 <code>axis.py</code>를 확인</div></div>
+        <div class="hack-case"><b>이슈·티켓 뒤지기</b><div class="say">Django 과제에서 <q>적용된 수정을 더 알아보자</q> → ticket #29205의 변경 이력 열람</div></div>
+        <div class="hack-case"><b>버전 탐색</b><div class="say">Sphinx 과제에서 <q>이후 버전에서 고쳐졌을 것</q> → <code>pip index versions sphinx</code>. 복사의 전조</div></div>
+      </div>
+      <ol class="tight">
+        <li><b>환경 정리</b>: 빌드 로그, 검증기 출력, 남은 패치, 바이트코드, 캐시 제거. git 이력은 기준 커밋까지만. 컨테이너 네트워크 격리.</li>
+        <li><b>Hack agent</b>: 전담 에이전트가 남은 유출 경로를 찾게 하고, 찾으면 정리 후 다시 돌림. 어떤 환경에서도 exploit를 못 찾을 때까지 반복.</li>
+        <li><b>학습 중 감사</b>: 궤적을 정기적으로 오프라인 감사. 학습 안에서는 GAR grader가 확정 hack의 reward를 0으로.</li>
+      </ol>
+      <p>그 결과 확정 hack 비중은 두 모델 모두 학습 내내 2% 미만이었습니다.</p>
+
+      <div class="est">
+        <div class="est-h"><span class="est-tag">추정</span><b>여기 나오는 "에이전트"는 어떤 모델인가</b></div>
+        <p>리포트가 모델을 밝힌 건 셋뿐입니다. 범용 과제의 RL 중 채점기는 자체 호스팅한 <b>MiMo-V2.6-SFT</b>, GAR 채점기는 "SFT-trained agentic grader", hack 교정 데이터는 "MiMo"가 고쳐 썼습니다. 과제를 4번 푸는 coding agent, 감사·계획·검토 agent, hack agent, 이슈를 재구성하는 LLM은 모델이 나오지 않습니다.</p>
+        <ul>
+          <li><b>환경 구축 에이전트는 RL 전에 일합니다.</b> 그 시점에 있던 모델(이전 세대 MiMo, V2.6 SFT 체크포인트, 외부 모델)을 썼을 것이고, 학습 중인 정책은 필요 없습니다.</li>
+          <li><b>RL 중 채점기는 고정된 SFT 스냅샷입니다.</b> 학습 중인 정책을 채점기로 쓰면 채점 기준이 매 스텝 바뀌고, 정책이 자기 채점기를 속이는 쪽으로 함께 움직일 수 있습니다.</li>
+        </ul>
+      </div>
+      <div class="est">
+        <div class="est-h"><span class="est-tag">추정</span><b>hack이 나온 환경과 과제는 어떻게 되나</b></div>
+        <p>환경은 버리지 않고 고쳐서 다시 씁니다(리포트: 발견한 경로로 정리를 보강하고 hack agent를 다시 돌림). 교정되는 건 궤적 쪽이고, 중간학습 데이터로 들어갑니다. 학습 도중 소스를 통째로 뺀 사례도 있습니다(대시보드 공지: pro 15스텝에 cyber 제외).</p>
+        <p>걸리는 점은, 교정 궤적이 "과제 명세에 근거해 행동을 이어간다"로 끝나면 그 과제의 정상 풀이가 중간학습에 들어갈 수 있다는 것입니다. 원리적으로는 <b>사례로 쓴 과제를 RL과 평가 풀에서 빼는 것</b>이 맞습니다(리포트 3장 부분의 "과제 단위 분리" 참고). 리포트는 이 처리를 말하지 않습니다.</p>
+      </div>
+    </section>
+
+    <!-- GRADER -->
+    <section id="rl-grader">
+      <div class="chap">리포트 4.3절</div>
+      <h2>RL 축 ③: 채점에 연산을 쓴다</h2>
+      <p class="q-line">테스트 통과는 "맞았다"만 알려주고 "잘 풀었다"는 알려주지 않습니다. 통과한 해답들 사이의 품질 차이를 신호로 바꾸는 두 방법이 이 리포트의 핵심 기여입니다.</p>
+
+      <div class="grid2">
+        <div class="box">
+          <span class="tag">GRS · 통과율 높은 일부 과제</span>
+          <h4>오프라인으로 만든 과제별 루브릭</h4>
+          <p>에이전트가 오프라인 롤아웃 여러 개를 비교해 <b>해결책 루브릭</b>(요구 충족, 엣지 케이스, 코드베이스와의 일관성)과 <b>행동 루브릭</b>(증거 수집, 변경 효과 확인)을 만듭니다. 학습 중 grader가 각 롤아웃을 채점해 테스트 보상에 곱합니다.</p>
+          <div class="math"><mjx-container class="MathJax" jax="SVG" display="true"><svg style="vertical-align: -0.576ex;" xmlns="http://www.w3.org/2000/svg" width="21.125ex" height="2.621ex" role="img" focusable="false" viewBox="0 -903.7 9337.3 1158.5" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><path id="MJX-2-TEX-I-1D445" d="M230 637Q203 637 198 638T193 649Q193 676 204 682Q206 683 378 683Q550 682 564 680Q620 672 658 652T712 606T733 563T739 529Q739 484 710 445T643 385T576 351T538 338L545 333Q612 295 612 223Q612 212 607 162T602 80V71Q602 53 603 43T614 25T640 16Q668 16 686 38T712 85Q717 99 720 102T735 105Q755 105 755 93Q755 75 731 36Q693 -21 641 -21H632Q571 -21 531 4T487 82Q487 109 502 166T517 239Q517 290 474 313Q459 320 449 321T378 323H309L277 193Q244 61 244 59Q244 55 245 54T252 50T269 48T302 46H333Q339 38 339 37T336 19Q332 6 326 0H311Q275 2 180 2Q146 2 117 2T71 2T50 1Q33 1 33 10Q33 12 36 24Q41 43 46 45Q50 46 61 46H67Q94 46 127 49Q141 52 146 61Q149 65 218 339T287 628Q287 635 230 637ZM630 554Q630 586 609 608T523 636Q521 636 500 636T462 637H440Q393 637 386 627Q385 624 352 494T319 361Q319 360 388 360Q466 361 492 367Q556 377 592 426Q608 449 619 486T630 554Z"></path><path id="MJX-2-TEX-I-1D456" d="M184 600Q184 624 203 642T247 661Q265 661 277 649T290 619Q290 596 270 577T226 557Q211 557 198 567T184 600ZM21 287Q21 295 30 318T54 369T98 420T158 442Q197 442 223 419T250 357Q250 340 236 301T196 196T154 83Q149 61 149 51Q149 26 166 26Q175 26 185 29T208 43T235 78T260 137Q263 149 265 151T282 153Q302 153 302 143Q302 135 293 112T268 61T223 11T161 -11Q129 -11 102 10T74 74Q74 91 79 106T122 220Q160 321 166 341T173 380Q173 404 156 404H154Q124 404 99 371T61 287Q60 286 59 284T58 281T56 279T53 278T49 278T41 278H27Q21 284 21 287Z"></path><path id="MJX-2-TEX-N-3D" d="M56 347Q56 360 70 367H707Q722 359 722 347Q722 336 708 328L390 327H72Q56 332 56 347ZM56 153Q56 168 72 173H708Q722 163 722 153Q722 140 707 133H70Q56 140 56 153Z"></path><path id="MJX-2-TEX-N-74" d="M27 422Q80 426 109 478T141 600V615H181V431H316V385H181V241Q182 116 182 100T189 68Q203 29 238 29Q282 29 292 100Q293 108 293 146V181H333V146V134Q333 57 291 17Q264 -10 221 -10Q187 -10 162 2T124 33T105 68T98 100Q97 107 97 248V385H18V422H27Z"></path><path id="MJX-2-TEX-N-65" d="M28 218Q28 273 48 318T98 391T163 433T229 448Q282 448 320 430T378 380T406 316T415 245Q415 238 408 231H126V216Q126 68 226 36Q246 30 270 30Q312 30 342 62Q359 79 369 104L379 128Q382 131 395 131H398Q415 131 415 121Q415 117 412 108Q393 53 349 21T250 -11Q155 -11 92 58T28 218ZM333 275Q322 403 238 411H236Q228 411 220 410T195 402T166 381T143 340T127 274V267H333V275Z"></path><path id="MJX-2-TEX-N-73" d="M295 316Q295 356 268 385T190 414Q154 414 128 401Q98 382 98 349Q97 344 98 336T114 312T157 287Q175 282 201 278T245 269T277 256Q294 248 310 236T342 195T359 133Q359 71 321 31T198 -10H190Q138 -10 94 26L86 19L77 10Q71 4 65 -1L54 -11H46H42Q39 -11 33 -5V74V132Q33 153 35 157T45 162H54Q66 162 70 158T75 146T82 119T101 77Q136 26 198 26Q295 26 295 104Q295 133 277 151Q257 175 194 187T111 210Q75 227 54 256T33 318Q33 357 50 384T93 424T143 442T187 447H198Q238 447 268 432L283 424L292 431Q302 440 314 448H322H326Q329 448 335 442V310L329 304H301Q295 310 295 316Z"></path><path id="MJX-2-TEX-N-22C5" d="M78 250Q78 274 95 292T138 310Q162 310 180 294T199 251Q199 226 182 208T139 190T96 207T78 250Z"></path><path id="MJX-2-TEX-I-1D446" d="M308 24Q367 24 416 76T466 197Q466 260 414 284Q308 311 278 321T236 341Q176 383 176 462Q176 523 208 573T273 648Q302 673 343 688T407 704H418H425Q521 704 564 640Q565 640 577 653T603 682T623 704Q624 704 627 704T632 705Q645 705 645 698T617 577T585 459T569 456Q549 456 549 465Q549 471 550 475Q550 478 551 494T553 520Q553 554 544 579T526 616T501 641Q465 662 419 662Q362 662 313 616T263 510Q263 480 278 458T319 427Q323 425 389 408T456 390Q490 379 522 342T554 242Q554 216 546 186Q541 164 528 137T492 78T426 18T332 -20Q320 -22 298 -22Q199 -22 144 33L134 44L106 13Q83 -14 78 -18T65 -22Q52 -22 52 -14Q52 -11 110 221Q112 227 130 227H143Q149 221 149 216Q149 214 148 207T144 186T142 153Q144 114 160 87T203 47T255 29T308 24Z"></path><path id="MJX-2-TEX-N-6F" d="M28 214Q28 309 93 378T250 448Q340 448 405 380T471 215Q471 120 407 55T250 -10Q153 -10 91 57T28 214ZM250 30Q372 30 372 193V225V250Q372 272 371 288T364 326T348 362T317 390T268 410Q263 411 252 411Q222 411 195 399Q152 377 139 338T126 246V226Q126 130 145 91Q177 30 250 30Z"></path><path id="MJX-2-TEX-N-6C" d="M42 46H56Q95 46 103 60V68Q103 77 103 91T103 124T104 167T104 217T104 272T104 329Q104 366 104 407T104 482T104 542T103 586T103 603Q100 622 89 628T44 637H26V660Q26 683 28 683L38 684Q48 685 67 686T104 688Q121 689 141 690T171 693T182 694H185V379Q185 62 186 60Q190 52 198 49Q219 46 247 46H263V0H255L232 1Q209 2 183 2T145 3T107 3T57 1L34 0H26V46H42Z"></path><path id="MJX-2-TEX-N-62" d="M307 -11Q234 -11 168 55L158 37Q156 34 153 28T147 17T143 10L138 1L118 0H98V298Q98 599 97 603Q94 622 83 628T38 637H20V660Q20 683 22 683L32 684Q42 685 61 686T98 688Q115 689 135 690T165 693T176 694H179V543Q179 391 180 391L183 394Q186 397 192 401T207 411T228 421T254 431T286 439T323 442Q401 442 461 379T522 216Q522 115 458 52T307 -11ZM182 98Q182 97 187 90T196 79T206 67T218 55T233 44T250 35T271 29T295 26Q330 26 363 46T412 113Q424 148 424 212Q424 287 412 323Q385 405 300 405Q270 405 239 390T188 347L182 339V98Z"></path><path id="MJX-2-TEX-N-68" d="M41 46H55Q94 46 102 60V68Q102 77 102 91T102 124T102 167T103 217T103 272T103 329Q103 366 103 407T103 482T102 542T102 586T102 603Q99 622 88 628T43 637H25V660Q25 683 27 683L37 684Q47 685 66 686T103 688Q120 689 140 690T170 693T181 694H184V367Q244 442 328 442Q451 442 463 329Q464 322 464 190V104Q464 66 466 59T477 49Q498 46 526 46H542V0H534L510 1Q487 2 460 2T422 3Q319 3 310 0H302V46H318Q379 46 379 62Q380 64 380 200Q379 335 378 343Q372 371 358 385T334 402T308 404Q263 404 229 370Q202 343 195 315T187 232V168V108Q187 78 188 68T191 55T200 49Q221 46 249 46H265V0H257L234 1Q210 2 183 2T145 3Q42 3 33 0H25V46H41Z"></path></defs><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="scale(1,-1)"><g data-mml-node="math"><g data-mml-node="msub"><g data-mml-node="mi"><use data-c="1D445" xlink:href="#MJX-2-TEX-I-1D445"></use></g><g data-mml-node="mi" transform="translate(792,-150) scale(0.707)"><use data-c="1D456" xlink:href="#MJX-2-TEX-I-1D456"></use></g></g><g data-mml-node="mo" transform="translate(1363.7,0)"><use data-c="3D" xlink:href="#MJX-2-TEX-N-3D"></use></g><g data-mml-node="msubsup" transform="translate(2419.5,0)"><g data-mml-node="mi"><use data-c="1D445" xlink:href="#MJX-2-TEX-I-1D445"></use></g><g data-mml-node="TeXAtom" transform="translate(792,413) scale(0.707)" data-mjx-texclass="ORD"><g data-mml-node="mtext"><use data-c="74" xlink:href="#MJX-2-TEX-N-74"></use><use data-c="65" xlink:href="#MJX-2-TEX-N-65" transform="translate(389,0)"></use><use data-c="73" xlink:href="#MJX-2-TEX-N-73" transform="translate(833,0)"></use><use data-c="74" xlink:href="#MJX-2-TEX-N-74" transform="translate(1227,0)"></use></g></g><g data-mml-node="mi" transform="translate(792,-247) scale(0.707)"><use data-c="1D456" xlink:href="#MJX-2-TEX-I-1D456"></use></g></g><g data-mml-node="mo" transform="translate(4626.4,0)"><use data-c="22C5" xlink:href="#MJX-2-TEX-N-22C5"></use></g><g data-mml-node="msubsup" transform="translate(5126.6,0)"><g data-mml-node="mi"><use data-c="1D446" xlink:href="#MJX-2-TEX-I-1D446"></use></g><g data-mml-node="TeXAtom" transform="translate(729.6,413) scale(0.707)" data-mjx-texclass="ORD"><g data-mml-node="mtext"><use data-c="73" xlink:href="#MJX-2-TEX-N-73"></use><use data-c="6F" xlink:href="#MJX-2-TEX-N-6F" transform="translate(394,0)"></use><use data-c="6C" xlink:href="#MJX-2-TEX-N-6C" transform="translate(894,0)"></use></g></g><g data-mml-node="mi" transform="translate(646,-247) scale(0.707)"><use data-c="1D456" xlink:href="#MJX-2-TEX-I-1D456"></use></g></g><g data-mml-node="mo" transform="translate(6957.2,0)"><use data-c="22C5" xlink:href="#MJX-2-TEX-N-22C5"></use></g><g data-mml-node="msubsup" transform="translate(7457.4,0)"><g data-mml-node="mi"><use data-c="1D446" xlink:href="#MJX-2-TEX-I-1D446"></use></g><g data-mml-node="TeXAtom" transform="translate(729.6,413) scale(0.707)" data-mjx-texclass="ORD"><g data-mml-node="mtext"><use data-c="62" xlink:href="#MJX-2-TEX-N-62"></use><use data-c="65" xlink:href="#MJX-2-TEX-N-65" transform="translate(556,0)"></use><use data-c="68" xlink:href="#MJX-2-TEX-N-68" transform="translate(1000,0)"></use></g></g><g data-mml-node="mi" transform="translate(646,-247) scale(0.707)"><use data-c="1D456" xlink:href="#MJX-2-TEX-I-1D456"></use></g></g></g></g></svg></mjx-container></div>
+          <p>실패는 여전히 0. 전부 통과한 그룹에서도 품질 차이가 남습니다.</p>
+        </div>
+        <div class="box">
+          <span class="tag">GAR · 나머지 코드 과제</span>
+          <h4>온라인으로 그룹을 비교해 credit 재배분</h4>
+          <p>SFT로 학습한 grader가 한 작업 공간에서 그룹 전체(패치, 테스트 출력)를 보고, 통과한 패치를 다섯 기준으로 순위 매깁니다: 접근의 적절성, 구현의 정확성, 최소성, 부작용 회피, 코드베이스 관례. 코드를 직접 읽고 테스트를 돌려볼 수 있고, 유출된 답에 의존했으면 reward를 0으로 바꿉니다.</p>
+        </div>
+      </div>
+
+      <p>GAR의 재배분은 통과 롤아웃의 양수 advantage를 품질 factor <mjx-container class="MathJax" jax="SVG"><svg style="vertical-align: -0.566ex;" xmlns="http://www.w3.org/2000/svg" width="9.392ex" height="2.262ex" role="img" focusable="false" viewBox="0 -750 4151.2 1000" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><path id="MJX-9-TEX-I-1D453" d="M118 -162Q120 -162 124 -164T135 -167T147 -168Q160 -168 171 -155T187 -126Q197 -99 221 27T267 267T289 382V385H242Q195 385 192 387Q188 390 188 397L195 425Q197 430 203 430T250 431Q298 431 298 432Q298 434 307 482T319 540Q356 705 465 705Q502 703 526 683T550 630Q550 594 529 578T487 561Q443 561 443 603Q443 622 454 636T478 657L487 662Q471 668 457 668Q445 668 434 658T419 630Q412 601 403 552T387 469T380 433Q380 431 435 431Q480 431 487 430T498 424Q499 420 496 407T491 391Q489 386 482 386T428 385H372L349 263Q301 15 282 -47Q255 -132 212 -173Q175 -205 139 -205Q107 -205 81 -186T55 -132Q55 -95 76 -78T118 -61Q162 -61 162 -103Q162 -122 151 -136T127 -157L118 -162Z"></path><path id="MJX-9-TEX-I-1D456" d="M184 600Q184 624 203 642T247 661Q265 661 277 649T290 619Q290 596 270 577T226 557Q211 557 198 567T184 600ZM21 287Q21 295 30 318T54 369T98 420T158 442Q197 442 223 419T250 357Q250 340 236 301T196 196T154 83Q149 61 149 51Q149 26 166 26Q175 26 185 29T208 43T235 78T260 137Q263 149 265 151T282 153Q302 153 302 143Q302 135 293 112T268 61T223 11T161 -11Q129 -11 102 10T74 74Q74 91 79 106T122 220Q160 321 166 341T173 380Q173 404 156 404H154Q124 404 99 371T61 287Q60 286 59 284T58 281T56 279T53 278T49 278T41 278H27Q21 284 21 287Z"></path><path id="MJX-9-TEX-N-2208" d="M84 250Q84 372 166 450T360 539Q361 539 377 539T419 540T469 540H568Q583 532 583 520Q583 511 570 501L466 500Q355 499 329 494Q280 482 242 458T183 409T147 354T129 306T124 272V270H568Q583 262 583 250T568 230H124V228Q124 207 134 177T167 112T231 48T328 7Q355 1 466 0H570Q583 -10 583 -20Q583 -32 568 -40H471Q464 -40 446 -40T417 -41Q262 -41 172 45Q84 127 84 250Z"></path><path id="MJX-9-TEX-N-28" d="M94 250Q94 319 104 381T127 488T164 576T202 643T244 695T277 729T302 750H315H319Q333 750 333 741Q333 738 316 720T275 667T226 581T184 443T167 250T184 58T225 -81T274 -167T316 -220T333 -241Q333 -250 318 -250H315H302L274 -226Q180 -141 137 -14T94 250Z"></path><path id="MJX-9-TEX-N-30" d="M96 585Q152 666 249 666Q297 666 345 640T423 548Q460 465 460 320Q460 165 417 83Q397 41 362 16T301 -15T250 -22Q224 -22 198 -16T137 16T82 83Q39 165 39 320Q39 494 96 585ZM321 597Q291 629 250 629Q208 629 178 597Q153 571 145 525T137 333Q137 175 145 125T181 46Q209 16 250 16Q290 16 318 46Q347 76 354 130T362 333Q362 478 354 524T321 597Z"></path><path id="MJX-9-TEX-N-2C" d="M78 35T78 60T94 103T137 121Q165 121 187 96T210 8Q210 -27 201 -60T180 -117T154 -158T130 -185T117 -194Q113 -194 104 -185T95 -172Q95 -168 106 -156T131 -126T157 -76T173 -3V9L172 8Q170 7 167 6T161 3T152 1T140 0Q113 0 96 17Z"></path><path id="MJX-9-TEX-N-31" d="M213 578L200 573Q186 568 160 563T102 556H83V602H102Q149 604 189 617T245 641T273 663Q275 666 285 666Q294 666 302 660V361L303 61Q310 54 315 52T339 48T401 46H427V0H416Q395 3 257 3Q121 3 100 0H88V46H114Q136 46 152 46T177 47T193 50T201 52T207 57T213 61V578Z"></path><path id="MJX-9-TEX-N-5D" d="M22 710V750H159V-250H22V-210H119V710H22Z"></path></defs><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="scale(1,-1)"><g data-mml-node="math"><g data-mml-node="msub"><g data-mml-node="mi"><use data-c="1D453" xlink:href="#MJX-9-TEX-I-1D453"></use></g><g data-mml-node="mi" transform="translate(523,-150) scale(0.707)"><use data-c="1D456" xlink:href="#MJX-9-TEX-I-1D456"></use></g></g><g data-mml-node="mo" transform="translate(1094.7,0)"><use data-c="2208" xlink:href="#MJX-9-TEX-N-2208"></use></g><g data-mml-node="mo" transform="translate(2039.5,0)"><use data-c="28" xlink:href="#MJX-9-TEX-N-28"></use></g><g data-mml-node="mn" transform="translate(2428.5,0)"><use data-c="30" xlink:href="#MJX-9-TEX-N-30"></use></g><g data-mml-node="mo" transform="translate(2928.5,0)"><use data-c="2C" xlink:href="#MJX-9-TEX-N-2C"></use></g><g data-mml-node="mn" transform="translate(3373.2,0)"><use data-c="31" xlink:href="#MJX-9-TEX-N-31"></use></g><g data-mml-node="mo" transform="translate(3873.2,0)"><use data-c="5D" xlink:href="#MJX-9-TEX-N-5D"></use></g></g></g></svg></mjx-container>로 줄인 뒤, 줄어든 양을 공통 배율 <mjx-container class="MathJax" jax="SVG"><svg style="vertical-align: -0.027ex;" xmlns="http://www.w3.org/2000/svg" width="1.319ex" height="1.597ex" role="img" focusable="false" viewBox="0 -694 583 706" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><path id="MJX-10-TEX-I-1D706" d="M166 673Q166 685 183 694H202Q292 691 316 644Q322 629 373 486T474 207T524 67Q531 47 537 34T546 15T551 6T555 2T556 -2T550 -11H482Q457 3 450 18T399 152L354 277L340 262Q327 246 293 207T236 141Q211 112 174 69Q123 9 111 -1T83 -12Q47 -12 47 20Q47 37 61 52T199 187Q229 216 266 252T321 306L338 322Q338 323 288 462T234 612Q214 657 183 657Q166 657 166 673Z"></path></defs><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="scale(1,-1)"><g data-mml-node="math"><g data-mml-node="mi"><use data-c="1D706" xlink:href="#MJX-10-TEX-I-1D706"></use></g></g></g></svg></mjx-container>로 통과 롤아웃들에 되돌립니다. 그래서 좋은 통과는 원래보다 커지고 나쁜 통과는 작아지며 양수 총량은 그대로입니다. <mjx-container class="MathJax" jax="SVG"><svg style="vertical-align: -0.027ex;" xmlns="http://www.w3.org/2000/svg" width="1.319ex" height="1.597ex" role="img" focusable="false" viewBox="0 -694 583 706" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><path id="MJX-11-TEX-I-1D706" d="M166 673Q166 685 183 694H202Q292 691 316 644Q322 629 373 486T474 207T524 67Q531 47 537 34T546 15T551 6T555 2T556 -2T550 -11H482Q457 3 450 18T399 152L354 277L340 262Q327 246 293 207T236 141Q211 112 174 69Q123 9 111 -1T83 -12Q47 -12 47 20Q47 37 61 52T199 187Q229 216 266 252T321 306L338 322Q338 323 288 462T234 612Q214 657 183 657Q166 657 166 673Z"></path></defs><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="scale(1,-1)"><g data-mml-node="math"><g data-mml-node="mi"><use data-c="1D706" xlink:href="#MJX-11-TEX-I-1D706"></use></g></g></g></svg></mjx-container>에는 상한이 있고, 그 뒤 그룹 평균을 빼 합을 0으로 맞춥니다.</p>
+      <div class="math"><mjx-container class="MathJax" jax="SVG" display="true"><svg style="vertical-align: -2.578ex;" xmlns="http://www.w3.org/2000/svg" width="48.356ex" height="6.288ex" role="img" focusable="false" viewBox="0 -1639.6 21373.5 2779.2" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><path id="MJX-3-TEX-I-1D706" d="M166 673Q166 685 183 694H202Q292 691 316 644Q322 629 373 486T474 207T524 67Q531 47 537 34T546 15T551 6T555 2T556 -2T550 -11H482Q457 3 450 18T399 152L354 277L340 262Q327 246 293 207T236 141Q211 112 174 69Q123 9 111 -1T83 -12Q47 -12 47 20Q47 37 61 52T199 187Q229 216 266 252T321 306L338 322Q338 323 288 462T234 612Q214 657 183 657Q166 657 166 673Z"></path><path id="MJX-3-TEX-N-3D" d="M56 347Q56 360 70 367H707Q722 359 722 347Q722 336 708 328L390 327H72Q56 332 56 347ZM56 153Q56 168 72 173H708Q722 163 722 153Q722 140 707 133H70Q56 140 56 153Z"></path><path id="MJX-3-TEX-SO-2211" d="M61 748Q64 750 489 750H913L954 640Q965 609 976 579T993 533T999 516H979L959 517Q936 579 886 621T777 682Q724 700 655 705T436 710H319Q183 710 183 709Q186 706 348 484T511 259Q517 250 513 244L490 216Q466 188 420 134T330 27L149 -187Q149 -188 362 -188Q388 -188 436 -188T506 -189Q679 -189 778 -162T936 -43Q946 -27 959 6H999L913 -249L489 -250Q65 -250 62 -248Q56 -246 56 -239Q56 -234 118 -161Q186 -81 245 -11L428 206Q428 207 242 462L57 717L56 728Q56 744 61 748Z"></path><path id="MJX-3-TEX-I-1D457" d="M297 596Q297 627 318 644T361 661Q378 661 389 651T403 623Q403 595 384 576T340 557Q322 557 310 567T297 596ZM288 376Q288 405 262 405Q240 405 220 393T185 362T161 325T144 293L137 279Q135 278 121 278H107Q101 284 101 286T105 299Q126 348 164 391T252 441Q253 441 260 441T272 442Q296 441 316 432Q341 418 354 401T367 348V332L318 133Q267 -67 264 -75Q246 -125 194 -164T75 -204Q25 -204 7 -183T-12 -137Q-12 -110 7 -91T53 -71Q70 -71 82 -81T95 -112Q95 -148 63 -167Q69 -168 77 -168Q111 -168 139 -140T182 -74L193 -32Q204 11 219 72T251 197T278 308T289 365Q289 372 288 376Z"></path><path id="MJX-3-TEX-N-2208" d="M84 250Q84 372 166 450T360 539Q361 539 377 539T419 540T469 540H568Q583 532 583 520Q583 511 570 501L466 500Q355 499 329 494Q280 482 242 458T183 409T147 354T129 306T124 272V270H568Q583 262 583 250T568 230H124V228Q124 207 134 177T167 112T231 48T328 7Q355 1 466 0H570Q583 -10 583 -20Q583 -32 568 -40H471Q464 -40 446 -40T417 -41Q262 -41 172 45Q84 127 84 250Z"></path><path id="MJX-3-TEX-I-1D443" d="M287 628Q287 635 230 637Q206 637 199 638T192 648Q192 649 194 659Q200 679 203 681T397 683Q587 682 600 680Q664 669 707 631T751 530Q751 453 685 389Q616 321 507 303Q500 302 402 301H307L277 182Q247 66 247 59Q247 55 248 54T255 50T272 48T305 46H336Q342 37 342 35Q342 19 335 5Q330 0 319 0Q316 0 282 1T182 2Q120 2 87 2T51 1Q33 1 33 11Q33 13 36 25Q40 41 44 43T67 46Q94 46 127 49Q141 52 146 61Q149 65 218 339T287 628ZM645 554Q645 567 643 575T634 597T609 619T560 635Q553 636 480 637Q463 637 445 637T416 636T404 636Q391 635 386 627Q384 621 367 550T332 412T314 344Q314 342 395 342H407H430Q542 342 590 392Q617 419 631 471T645 554Z"></path><path id="MJX-3-TEX-I-1D434" d="M208 74Q208 50 254 46Q272 46 272 35Q272 34 270 22Q267 8 264 4T251 0Q249 0 239 0T205 1T141 2Q70 2 50 0H42Q35 7 35 11Q37 38 48 46H62Q132 49 164 96Q170 102 345 401T523 704Q530 716 547 716H555H572Q578 707 578 706L606 383Q634 60 636 57Q641 46 701 46Q726 46 726 36Q726 34 723 22Q720 7 718 4T704 0Q701 0 690 0T651 1T578 2Q484 2 455 0H443Q437 6 437 9T439 27Q443 40 445 43L449 46H469Q523 49 533 63L521 213H283L249 155Q208 86 208 74ZM516 260Q516 271 504 416T490 562L463 519Q447 492 400 412L310 260L413 259Q516 259 516 260Z"></path><path id="MJX-3-TEX-I-1D453" d="M118 -162Q120 -162 124 -164T135 -167T147 -168Q160 -168 171 -155T187 -126Q197 -99 221 27T267 267T289 382V385H242Q195 385 192 387Q188 390 188 397L195 425Q197 430 203 430T250 431Q298 431 298 432Q298 434 307 482T319 540Q356 705 465 705Q502 703 526 683T550 630Q550 594 529 578T487 561Q443 561 443 603Q443 622 454 636T478 657L487 662Q471 668 457 668Q445 668 434 658T419 630Q412 601 403 552T387 469T380 433Q380 431 435 431Q480 431 487 430T498 424Q499 420 496 407T491 391Q489 386 482 386T428 385H372L349 263Q301 15 282 -47Q255 -132 212 -173Q175 -205 139 -205Q107 -205 81 -186T55 -132Q55 -95 76 -78T118 -61Q162 -61 162 -103Q162 -122 151 -136T127 -157L118 -162Z"></path><path id="MJX-3-TEX-N-2C" d="M78 35T78 60T94 103T137 121Q165 121 187 96T210 8Q210 -27 201 -60T180 -117T154 -158T130 -185T117 -194Q113 -194 104 -185T95 -172Q95 -168 106 -156T131 -126T157 -76T173 -3V9L172 8Q170 7 167 6T161 3T152 1T140 0Q113 0 96 17Z"></path><path id="MJX-3-TEX-V-2032" d="M79 43Q73 43 52 49T30 61Q30 68 85 293T146 528Q161 560 198 560Q218 560 240 545T262 501Q262 496 260 486Q259 479 173 263T84 45T79 43Z"></path><path id="MJX-3-TEX-I-1D456" d="M184 600Q184 624 203 642T247 661Q265 661 277 649T290 619Q290 596 270 577T226 557Q211 557 198 567T184 600ZM21 287Q21 295 30 318T54 369T98 420T158 442Q197 442 223 419T250 357Q250 340 236 301T196 196T154 83Q149 61 149 51Q149 26 166 26Q175 26 185 29T208 43T235 78T260 137Q263 149 265 151T282 153Q302 153 302 143Q302 135 293 112T268 61T223 11T161 -11Q129 -11 102 10T74 74Q74 91 79 106T122 220Q160 321 166 341T173 380Q173 404 156 404H154Q124 404 99 371T61 287Q60 286 59 284T58 281T56 279T53 278T49 278T41 278H27Q21 284 21 287Z"></path><path id="MJX-3-TEX-S3-7B" d="M618 -943L612 -949H582L568 -943Q472 -903 411 -841T332 -703Q327 -682 327 -653T325 -350Q324 -28 323 -18Q317 24 301 61T264 124T221 171T179 205T147 225T132 234Q130 238 130 250Q130 255 130 258T131 264T132 267T134 269T139 272T144 275Q207 308 256 367Q310 436 323 519Q324 529 325 851Q326 1124 326 1154T332 1205Q369 1358 566 1443L582 1450H612L618 1444V1429Q618 1413 616 1411L608 1406Q599 1402 585 1393T552 1372T515 1343T479 1305T449 1257T429 1200Q425 1180 425 1152T423 851Q422 579 422 549T416 498Q407 459 388 424T346 364T297 318T250 284T214 264T197 254L188 251L205 242Q290 200 345 138T416 3Q421 -18 421 -48T423 -349Q423 -397 423 -472Q424 -677 428 -694Q429 -697 429 -699Q434 -722 443 -743T465 -782T491 -816T519 -845T548 -868T574 -886T595 -899T610 -908L616 -910Q618 -912 618 -928V-943Z"></path><path id="MJX-3-TEX-N-A0" d=""></path><path id="MJX-3-TEX-N-28" d="M94 250Q94 319 104 381T127 488T164 576T202 643T244 695T277 729T302 750H315H319Q333 750 333 741Q333 738 316 720T275 667T226 581T184 443T167 250T184 58T225 -81T274 -167T316 -220T333 -241Q333 -250 318 -250H315H302L274 -226Q180 -141 137 -14T94 250Z"></path><path id="MJX-3-TEX-N-29" d="M60 749L64 750Q69 750 74 750H86L114 726Q208 641 251 514T294 250Q294 182 284 119T261 12T224 -76T186 -143T145 -194T113 -227T90 -246Q87 -249 86 -250H74Q66 -250 63 -250T58 -247T55 -238Q56 -237 66 -225Q221 -64 221 250T66 725Q56 737 55 738Q55 746 60 749Z"></path><path id="MJX-3-TEX-N-2209" d="M196 25Q84 109 84 250Q84 372 166 450T360 539Q361 539 375 539T413 540T460 540L547 707Q550 716 563 716Q570 716 575 712T581 703T583 696T505 540H568Q583 532 583 520Q583 511 570 501L484 500L366 270H568Q583 262 583 250T568 230H346L247 38Q284 16 328 7Q355 1 466 0H570Q583 -10 583 -20Q583 -32 568 -40H471Q464 -40 447 -40T419 -41Q304 -41 228 3Q117 -211 115 -212Q111 -215 104 -215T92 -212T86 -204T84 -197Q84 -190 89 -183L196 25ZM214 61L301 230H124V228Q124 196 147 147T214 61ZM321 270L440 500Q353 499 329 494Q280 482 242 458T183 409T147 354T129 306T124 272V270H321Z"></path></defs><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="scale(1,-1)"><g data-mml-node="math"><g data-mml-node="mi"><use data-c="1D706" xlink:href="#MJX-3-TEX-I-1D706"></use></g><g data-mml-node="mo" transform="translate(860.8,0)"><use data-c="3D" xlink:href="#MJX-3-TEX-N-3D"></use></g><g data-mml-node="mfrac" transform="translate(1916.6,0)"><g data-mml-node="mrow" transform="translate(652.2,889.6)"><g data-mml-node="munder"><g data-mml-node="mo"><use data-c="2211" xlink:href="#MJX-3-TEX-SO-2211"></use></g><g data-mml-node="TeXAtom" transform="translate(1089,-285.4) scale(0.707)" data-mjx-texclass="ORD"><g data-mml-node="mi"><use data-c="1D457" xlink:href="#MJX-3-TEX-I-1D457"></use></g><g data-mml-node="mo" transform="translate(412,0)"><use data-c="2208" xlink:href="#MJX-3-TEX-N-2208"></use></g><g data-mml-node="mi" transform="translate(1079,0)"><use data-c="1D443" xlink:href="#MJX-3-TEX-I-1D443"></use></g></g></g><g data-mml-node="msub" transform="translate(2599.7,0)"><g data-mml-node="mi"><use data-c="1D434" xlink:href="#MJX-3-TEX-I-1D434"></use></g><g data-mml-node="mi" transform="translate(783,-150) scale(0.707)"><use data-c="1D457" xlink:href="#MJX-3-TEX-I-1D457"></use></g></g></g><g data-mml-node="mrow" transform="translate(220,-710)"><g data-mml-node="munder"><g data-mml-node="mo"><use data-c="2211" xlink:href="#MJX-3-TEX-SO-2211"></use></g><g data-mml-node="TeXAtom" transform="translate(1089,-285.4) scale(0.707)" data-mjx-texclass="ORD"><g data-mml-node="mi"><use data-c="1D457" xlink:href="#MJX-3-TEX-I-1D457"></use></g><g data-mml-node="mo" transform="translate(412,0)"><use data-c="2208" xlink:href="#MJX-3-TEX-N-2208"></use></g><g data-mml-node="mi" transform="translate(1079,0)"><use data-c="1D443" xlink:href="#MJX-3-TEX-I-1D443"></use></g></g></g><g data-mml-node="msub" transform="translate(2599.7,0)"><g data-mml-node="mi"><use data-c="1D453" xlink:href="#MJX-3-TEX-I-1D453"></use></g><g data-mml-node="mi" transform="translate(523,-150) scale(0.707)"><use data-c="1D457" xlink:href="#MJX-3-TEX-I-1D457"></use></g></g><g data-mml-node="msub" transform="translate(3464,0)"><g data-mml-node="mi"><use data-c="1D434" xlink:href="#MJX-3-TEX-I-1D434"></use></g><g data-mml-node="mi" transform="translate(783,-150) scale(0.707)"><use data-c="1D457" xlink:href="#MJX-3-TEX-I-1D457"></use></g></g></g><rect width="4788.3" height="60" x="120" y="220"></rect></g><g data-mml-node="mo" transform="translate(6944.9,0)"><use data-c="2C" xlink:href="#MJX-3-TEX-N-2C"></use></g><g data-mml-node="mstyle" transform="translate(7222.9,0)"><g data-mml-node="mspace"></g></g><g data-mml-node="msubsup" transform="translate(9389.6,0)"><g data-mml-node="mi"><use data-c="1D434" xlink:href="#MJX-3-TEX-I-1D434"></use></g><g data-mml-node="mo" transform="translate(783,413) scale(0.707)"><use data-c="2032" xlink:href="#MJX-3-TEX-V-2032"></use></g><g data-mml-node="mi" transform="translate(783,-247) scale(0.707)"><use data-c="1D456" xlink:href="#MJX-3-TEX-I-1D456"></use></g></g><g data-mml-node="mo" transform="translate(10744.3,0)"><use data-c="3D" xlink:href="#MJX-3-TEX-N-3D"></use></g><g data-mml-node="mrow" transform="translate(11800.1,0)"><g data-mml-node="mo" transform="translate(0 -0.5)"><use data-c="7B" xlink:href="#MJX-3-TEX-S3-7B"></use></g><g data-mml-node="mtable" transform="translate(750,0)"><g data-mml-node="mtr" transform="translate(0,600)"><g data-mml-node="mtd"><g data-mml-node="mi"><use data-c="1D706" xlink:href="#MJX-3-TEX-I-1D706"></use></g><g data-mml-node="msub" transform="translate(583,0)"><g data-mml-node="mi"><use data-c="1D453" xlink:href="#MJX-3-TEX-I-1D453"></use></g><g data-mml-node="mi" transform="translate(523,-150) scale(0.707)"><use data-c="1D456" xlink:href="#MJX-3-TEX-I-1D456"></use></g></g><g data-mml-node="msub" transform="translate(1400,0)"><g data-mml-node="mi"><use data-c="1D434" xlink:href="#MJX-3-TEX-I-1D434"></use></g><g data-mml-node="mi" transform="translate(783,-150) scale(0.707)"><use data-c="1D456" xlink:href="#MJX-3-TEX-I-1D456"></use></g></g></g><g data-mml-node="mtd" transform="translate(3476.9,0)"><g data-mml-node="mi"><use data-c="1D456" xlink:href="#MJX-3-TEX-I-1D456"></use></g><g data-mml-node="mo" transform="translate(622.8,0)"><use data-c="2208" xlink:href="#MJX-3-TEX-N-2208"></use></g><g data-mml-node="mi" transform="translate(1567.6,0)"><use data-c="1D443" xlink:href="#MJX-3-TEX-I-1D443"></use></g><g data-mml-node="mtext" transform="translate(2318.6,0)"><use data-c="A0" xlink:href="#MJX-3-TEX-N-A0"></use></g><g data-mml-node="mo" transform="translate(2568.6,0)"><use data-c="28" xlink:href="#MJX-3-TEX-N-28"></use></g><g data-mml-node="mtext" transform="translate(2957.6,0)"><text data-variant="normal" transform="scale(1,-1)" font-size="884px" font-family="serif">통</text><text data-variant="normal" transform="translate(1000,0) scale(1,-1)" font-size="884px" font-family="serif">과</text></g><g data-mml-node="mo" transform="translate(4957.6,0)"><use data-c="29" xlink:href="#MJX-3-TEX-N-29"></use></g></g></g><g data-mml-node="mtr" transform="translate(0,-600)"><g data-mml-node="mtd"><g data-mml-node="msub"><g data-mml-node="mi"><use data-c="1D434" xlink:href="#MJX-3-TEX-I-1D434"></use></g><g data-mml-node="mi" transform="translate(783,-150) scale(0.707)"><use data-c="1D456" xlink:href="#MJX-3-TEX-I-1D456"></use></g></g></g><g data-mml-node="mtd" transform="translate(3476.9,0)"><g data-mml-node="mi"><use data-c="1D456" xlink:href="#MJX-3-TEX-I-1D456"></use></g><g data-mml-node="mo" transform="translate(622.8,0)"><use data-c="2209" xlink:href="#MJX-3-TEX-N-2209"></use></g><g data-mml-node="mi" transform="translate(1567.6,0)"><use data-c="1D443" xlink:href="#MJX-3-TEX-I-1D443"></use></g></g></g></g><g data-mml-node="mo" transform="translate(9573.5,0) translate(0 250)"></g></g></g></g></svg></mjx-container></div>
+      <div class="plain"><b>왜 이렇게 하나</b>양수만 깎고 끝내면 음수 쪽이 상대적으로 커져 엔트로피가 폭주합니다. 재정규화는 그 균형을 되돌리는 안전장치입니다. flash로 코드만 학습한 비교에서, GAR이 없으면 턴 수와 길이가 빠르게 늘어 길이 한도에 걸리고 통과율 상승이 멈췄습니다. GAR을 쓰면 52스텝까지 통과율이 계속 오르고 턴 수는 거의 일정했습니다. 코드 감사에서도 GAR 없는 정책은 예외 삼키기, 검증 완화, 평가용 설정 변경 같은 "통과용 우회"를 늘렸습니다.</div>
+
+      <h3>행동 정규화: 길이와 형식 오류</h3>
+      <div class="grid2">
+        <div class="box">
+          <h4>그룹 상대 길이 페널티</h4>
+          <p>통과율이 문턱 <mjx-container class="MathJax" jax="SVG"><svg style="vertical-align: 0;" xmlns="http://www.w3.org/2000/svg" width="1.697ex" height="1.62ex" role="img" focusable="false" viewBox="0 -716 750 716" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><path id="MJX-12-TEX-I-1D434" d="M208 74Q208 50 254 46Q272 46 272 35Q272 34 270 22Q267 8 264 4T251 0Q249 0 239 0T205 1T141 2Q70 2 50 0H42Q35 7 35 11Q37 38 48 46H62Q132 49 164 96Q170 102 345 401T523 704Q530 716 547 716H555H572Q578 707 578 706L606 383Q634 60 636 57Q641 46 701 46Q726 46 726 36Q726 34 723 22Q720 7 718 4T704 0Q701 0 690 0T651 1T578 2Q484 2 455 0H443Q437 6 437 9T439 27Q443 40 445 43L449 46H469Q523 49 533 63L521 213H283L249 155Q208 86 208 74ZM516 260Q516 271 504 416T490 562L463 519Q447 492 400 412L310 260L413 259Q516 259 516 260Z"></path></defs><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="scale(1,-1)"><g data-mml-node="math"><g data-mml-node="mi"><use data-c="1D434" xlink:href="#MJX-12-TEX-I-1D434"></use></g></g></g></svg></mjx-container>를 넘는 그룹에서만, 성공한 롤아웃 길이의 <mjx-container class="MathJax" jax="SVG"><svg style="vertical-align: 0;" xmlns="http://www.w3.org/2000/svg" width="1.717ex" height="1.545ex" role="img" focusable="false" viewBox="0 -683 759 683" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><path id="MJX-13-TEX-I-1D435" d="M231 637Q204 637 199 638T194 649Q194 676 205 682Q206 683 335 683Q594 683 608 681Q671 671 713 636T756 544Q756 480 698 429T565 360L555 357Q619 348 660 311T702 219Q702 146 630 78T453 1Q446 0 242 0Q42 0 39 2Q35 5 35 10Q35 17 37 24Q42 43 47 45Q51 46 62 46H68Q95 46 128 49Q142 52 147 61Q150 65 219 339T288 628Q288 635 231 637ZM649 544Q649 574 634 600T585 634Q578 636 493 637Q473 637 451 637T416 636H403Q388 635 384 626Q382 622 352 506Q352 503 351 500L320 374H401Q482 374 494 376Q554 386 601 434T649 544ZM595 229Q595 273 572 302T512 336Q506 337 429 337Q311 337 310 336Q310 334 293 263T258 122L240 52Q240 48 252 48T333 46Q422 46 429 47Q491 54 543 105T595 229Z"></path></defs><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="scale(1,-1)"><g data-mml-node="math"><g data-mml-node="mi"><use data-c="1D435" xlink:href="#MJX-13-TEX-I-1D435"></use></g></g></g></svg></mjx-container> 분위수를 기준으로 너무 긴 성공을 최대 <mjx-container class="MathJax" jax="SVG"><svg style="vertical-align: 0;" xmlns="http://www.w3.org/2000/svg" width="1.928ex" height="1.545ex" role="img" focusable="false" viewBox="0 -683 852 683" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><path id="MJX-14-TEX-I-1D44B" d="M42 0H40Q26 0 26 11Q26 15 29 27Q33 41 36 43T55 46Q141 49 190 98Q200 108 306 224T411 342Q302 620 297 625Q288 636 234 637H206Q200 643 200 645T202 664Q206 677 212 683H226Q260 681 347 681Q380 681 408 681T453 682T473 682Q490 682 490 671Q490 670 488 658Q484 643 481 640T465 637Q434 634 411 620L488 426L541 485Q646 598 646 610Q646 628 622 635Q617 635 609 637Q594 637 594 648Q594 650 596 664Q600 677 606 683H618Q619 683 643 683T697 681T738 680Q828 680 837 683H845Q852 676 852 672Q850 647 840 637H824Q790 636 763 628T722 611T698 593L687 584Q687 585 592 480L505 384Q505 383 536 304T601 142T638 56Q648 47 699 46Q734 46 734 37Q734 35 732 23Q728 7 725 4T711 1Q708 1 678 1T589 2Q528 2 496 2T461 1Q444 1 444 10Q444 11 446 25Q448 35 450 39T455 44T464 46T480 47T506 54Q523 62 523 64Q522 64 476 181L429 299Q241 95 236 84Q232 76 232 72Q232 53 261 47Q262 47 267 47T273 46Q276 46 277 46T280 45T283 42T284 35Q284 26 282 19Q279 6 276 4T261 1Q258 1 243 1T201 2T142 2Q64 2 42 0Z"></path></defs><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="scale(1,-1)"><g data-mml-node="math"><g data-mml-node="mi"><use data-c="1D44B" xlink:href="#MJX-14-TEX-I-1D44B"></use></g></g></g></svg></mjx-container>만큼 깎습니다. 어려운 프롬프트는 탐색 여지를 남깁니다.</p>
+          <div class="math"><mjx-container class="MathJax" jax="SVG" display="true"><svg style="vertical-align: -1.469ex;" xmlns="http://www.w3.org/2000/svg" width="43.077ex" height="4.158ex" role="img" focusable="false" viewBox="0 -1188.4 19040.1 1837.9" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><path id="MJX-4-TEX-I-1D445" d="M230 637Q203 637 198 638T193 649Q193 676 204 682Q206 683 378 683Q550 682 564 680Q620 672 658 652T712 606T733 563T739 529Q739 484 710 445T643 385T576 351T538 338L545 333Q612 295 612 223Q612 212 607 162T602 80V71Q602 53 603 43T614 25T640 16Q668 16 686 38T712 85Q717 99 720 102T735 105Q755 105 755 93Q755 75 731 36Q693 -21 641 -21H632Q571 -21 531 4T487 82Q487 109 502 166T517 239Q517 290 474 313Q459 320 449 321T378 323H309L277 193Q244 61 244 59Q244 55 245 54T252 50T269 48T302 46H333Q339 38 339 37T336 19Q332 6 326 0H311Q275 2 180 2Q146 2 117 2T71 2T50 1Q33 1 33 10Q33 12 36 24Q41 43 46 45Q50 46 61 46H67Q94 46 127 49Q141 52 146 61Q149 65 218 339T287 628Q287 635 230 637ZM630 554Q630 586 609 608T523 636Q521 636 500 636T462 637H440Q393 637 386 627Q385 624 352 494T319 361Q319 360 388 360Q466 361 492 367Q556 377 592 426Q608 449 619 486T630 554Z"></path><path id="MJX-4-TEX-N-7E" d="M179 251Q164 251 151 245T131 234T111 215L97 227L83 238Q83 239 95 253T121 283T142 304Q165 318 187 318T253 300T320 282Q335 282 348 288T368 299T388 318L402 306L416 295Q375 236 344 222Q330 215 313 215Q292 215 248 233T179 251Z"></path><path id="MJX-4-TEX-I-1D456" d="M184 600Q184 624 203 642T247 661Q265 661 277 649T290 619Q290 596 270 577T226 557Q211 557 198 567T184 600ZM21 287Q21 295 30 318T54 369T98 420T158 442Q197 442 223 419T250 357Q250 340 236 301T196 196T154 83Q149 61 149 51Q149 26 166 26Q175 26 185 29T208 43T235 78T260 137Q263 149 265 151T282 153Q302 153 302 143Q302 135 293 112T268 61T223 11T161 -11Q129 -11 102 10T74 74Q74 91 79 106T122 220Q160 321 166 341T173 380Q173 404 156 404H154Q124 404 99 371T61 287Q60 286 59 284T58 281T56 279T53 278T49 278T41 278H27Q21 284 21 287Z"></path><path id="MJX-4-TEX-N-3D" d="M56 347Q56 360 70 367H707Q722 359 722 347Q722 336 708 328L390 327H72Q56 332 56 347ZM56 153Q56 168 72 173H708Q722 163 722 153Q722 140 707 133H70Q56 140 56 153Z"></path><path id="MJX-4-TEX-N-2212" d="M84 237T84 250T98 270H679Q694 262 694 250T679 230H98Q84 237 84 250Z"></path><path id="MJX-4-TEX-N-5B" d="M118 -250V750H255V710H158V-210H255V-250H118Z"></path><path id="MJX-4-TEX-N-2208" d="M84 250Q84 372 166 450T360 539Q361 539 377 539T419 540T469 540H568Q583 532 583 520Q583 511 570 501L466 500Q355 499 329 494Q280 482 242 458T183 409T147 354T129 306T124 272V270H568Q583 262 583 250T568 230H124V228Q124 207 134 177T167 112T231 48T328 7Q355 1 466 0H570Q583 -10 583 -20Q583 -32 568 -40H471Q464 -40 446 -40T417 -41Q262 -41 172 45Q84 127 84 250Z"></path><path id="MJX-4-TEX-I-1D443" d="M287 628Q287 635 230 637Q206 637 199 638T192 648Q192 649 194 659Q200 679 203 681T397 683Q587 682 600 680Q664 669 707 631T751 530Q751 453 685 389Q616 321 507 303Q500 302 402 301H307L277 182Q247 66 247 59Q247 55 248 54T255 50T272 48T305 46H336Q342 37 342 35Q342 19 335 5Q330 0 319 0Q316 0 282 1T182 2Q120 2 87 2T51 1Q33 1 33 11Q33 13 36 25Q40 41 44 43T67 46Q94 46 127 49Q141 52 146 61Q149 65 218 339T287 628ZM645 554Q645 567 643 575T634 597T609 619T560 635Q553 636 480 637Q463 637 445 637T416 636T404 636Q391 635 386 627Q384 621 367 550T332 412T314 344Q314 342 395 342H407H430Q542 342 590 392Q617 419 631 471T645 554Z"></path><path id="MJX-4-TEX-I-1D45E" d="M33 157Q33 258 109 349T280 441Q340 441 372 389Q373 390 377 395T388 406T404 418Q438 442 450 442Q454 442 457 439T460 434Q460 425 391 149Q320 -135 320 -139Q320 -147 365 -148H390Q396 -156 396 -157T393 -175Q389 -188 383 -194H370Q339 -192 262 -192Q234 -192 211 -192T174 -192T157 -193Q143 -193 143 -185Q143 -182 145 -170Q149 -154 152 -151T172 -148Q220 -148 230 -141Q238 -136 258 -53T279 32Q279 33 272 29Q224 -10 172 -10Q117 -10 75 30T33 157ZM352 326Q329 405 277 405Q242 405 210 374T160 293Q131 214 119 129Q119 126 119 118T118 106Q118 61 136 44T179 26Q233 26 290 98L298 109L352 326Z"></path><path id="MJX-4-TEX-N-5D" d="M22 710V750H159V-250H22V-210H119V710H22Z"></path><path id="MJX-4-TEX-I-1D44B" d="M42 0H40Q26 0 26 11Q26 15 29 27Q33 41 36 43T55 46Q141 49 190 98Q200 108 306 224T411 342Q302 620 297 625Q288 636 234 637H206Q200 643 200 645T202 664Q206 677 212 683H226Q260 681 347 681Q380 681 408 681T453 682T473 682Q490 682 490 671Q490 670 488 658Q484 643 481 640T465 637Q434 634 411 620L488 426L541 485Q646 598 646 610Q646 628 622 635Q617 635 609 637Q594 637 594 648Q594 650 596 664Q600 677 606 683H618Q619 683 643 683T697 681T738 680Q828 680 837 683H845Q852 676 852 672Q850 647 840 637H824Q790 636 763 628T722 611T698 593L687 584Q687 585 592 480L505 384Q505 383 536 304T601 142T638 56Q648 47 699 46Q734 46 734 37Q734 35 732 23Q728 7 725 4T711 1Q708 1 678 1T589 2Q528 2 496 2T461 1Q444 1 444 10Q444 11 446 25Q448 35 450 39T455 44T464 46T480 47T506 54Q523 62 523 64Q522 64 476 181L429 299Q241 95 236 84Q232 76 232 72Q232 53 261 47Q262 47 267 47T273 46Q276 46 277 46T280 45T283 42T284 35Q284 26 282 19Q279 6 276 4T261 1Q258 1 243 1T201 2T142 2Q64 2 42 0Z"></path><path id="MJX-4-TEX-N-22C5" d="M78 250Q78 274 95 292T138 310Q162 310 180 294T199 251Q199 226 182 208T139 190T96 207T78 250Z"></path><path id="MJX-4-TEX-N-63" d="M370 305T349 305T313 320T297 358Q297 381 312 396Q317 401 317 402T307 404Q281 408 258 408Q209 408 178 376Q131 329 131 219Q131 137 162 90Q203 29 272 29Q313 29 338 55T374 117Q376 125 379 127T395 129H409Q415 123 415 120Q415 116 411 104T395 71T366 33T318 2T249 -11Q163 -11 99 53T34 214Q34 318 99 383T250 448T370 421T404 357Q404 334 387 320Z"></path><path id="MJX-4-TEX-N-6C" d="M42 46H56Q95 46 103 60V68Q103 77 103 91T103 124T104 167T104 217T104 272T104 329Q104 366 104 407T104 482T104 542T103 586T103 603Q100 622 89 628T44 637H26V660Q26 683 28 683L38 684Q48 685 67 686T104 688Q121 689 141 690T171 693T182 694H185V379Q185 62 186 60Q190 52 198 49Q219 46 247 46H263V0H255L232 1Q209 2 183 2T145 3T107 3T57 1L34 0H26V46H42Z"></path><path id="MJX-4-TEX-N-69" d="M69 609Q69 637 87 653T131 669Q154 667 171 652T188 609Q188 579 171 564T129 549Q104 549 87 564T69 609ZM247 0Q232 3 143 3Q132 3 106 3T56 1L34 0H26V46H42Q70 46 91 49Q100 53 102 60T104 102V205V293Q104 345 102 359T88 378Q74 385 41 385H30V408Q30 431 32 431L42 432Q52 433 70 434T106 436Q123 437 142 438T171 441T182 442H185V62Q190 52 197 50T232 46H255V0H247Z"></path><path id="MJX-4-TEX-N-70" d="M36 -148H50Q89 -148 97 -134V-126Q97 -119 97 -107T97 -77T98 -38T98 6T98 55T98 106Q98 140 98 177T98 243T98 296T97 335T97 351Q94 370 83 376T38 385H20V408Q20 431 22 431L32 432Q42 433 61 434T98 436Q115 437 135 438T165 441T176 442H179V416L180 390L188 397Q247 441 326 441Q407 441 464 377T522 216Q522 115 457 52T310 -11Q242 -11 190 33L182 40V-45V-101Q182 -128 184 -134T195 -145Q216 -148 244 -148H260V-194H252L228 -193Q205 -192 178 -192T140 -191Q37 -191 28 -194H20V-148H36ZM424 218Q424 292 390 347T305 402Q234 402 182 337V98Q222 26 294 26Q345 26 384 80T424 218Z"></path><path id="MJX-4-TEX-LO-28" d="M180 96T180 250T205 541T266 770T353 944T444 1069T527 1150H555Q561 1144 561 1141Q561 1137 545 1120T504 1072T447 995T386 878T330 721T288 513T272 251Q272 133 280 56Q293 -87 326 -209T399 -405T475 -531T536 -609T561 -640Q561 -643 555 -649H527Q483 -612 443 -568T353 -443T266 -270T205 -41Z"></path><path id="MJX-4-TEX-I-2113" d="M345 104T349 104T361 95T369 80T352 59Q268 -20 206 -20Q170 -20 146 3T113 53T99 104L94 129Q94 130 79 116T48 86T28 70Q22 70 15 79T7 94Q7 98 12 103T58 147L91 179V185Q91 186 91 191T92 200Q92 282 128 400T223 612T336 705Q397 705 397 636V627Q397 453 194 233Q185 223 180 218T174 211T171 208T165 201L163 186Q159 142 159 123Q159 17 208 17Q228 17 253 30T293 56T335 94Q345 104 349 104ZM360 634Q360 655 354 661T336 668Q328 668 322 666T302 645T272 592Q252 547 229 467T192 330L179 273Q179 272 186 280T204 300T221 322Q327 453 355 590Q360 612 360 634Z"></path><path id="MJX-4-TEX-N-2F" d="M423 750Q432 750 438 744T444 730Q444 725 271 248T92 -240Q85 -250 75 -250Q68 -250 62 -245T56 -231Q56 -221 230 257T407 740Q411 750 423 750Z"></path><path id="MJX-4-TEX-N-22C6" d="M210 282Q210 284 225 381T241 480Q241 484 245 484Q249 486 251 486Q258 486 260 477T272 406Q275 390 276 380Q290 286 290 282L388 299Q484 314 487 314H488Q497 314 497 302Q497 297 434 266Q416 257 404 251L315 206L361 118Q372 98 383 75T401 40L407 28Q407 16 395 16Q394 16 392 16L390 17L250 159L110 17L108 16Q106 16 105 16Q93 16 93 28L99 40Q105 52 116 75T139 118L185 206L96 251Q6 296 4 300Q3 301 3 302Q3 314 12 314H13Q16 314 112 299L210 282Z"></path><path id="MJX-4-TEX-N-31" d="M213 578L200 573Q186 568 160 563T102 556H83V602H102Q149 604 189 617T245 641T273 663Q275 666 285 666Q294 666 302 660V361L303 61Q310 54 315 52T339 48T401 46H427V0H416Q395 3 257 3Q121 3 100 0H88V46H114Q136 46 152 46T177 47T193 50T201 52T207 57T213 61V578Z"></path><path id="MJX-4-TEX-I-1D6FF" d="M195 609Q195 656 227 686T302 717Q319 716 351 709T407 697T433 690Q451 682 451 662Q451 644 438 628T403 612Q382 612 348 641T288 671T249 657T235 628Q235 584 334 463Q401 379 401 292Q401 169 340 80T205 -10H198Q127 -10 83 36T36 153Q36 286 151 382Q191 413 252 434Q252 435 245 449T230 481T214 521T201 566T195 609ZM112 130Q112 83 136 55T204 27Q233 27 256 51T291 111T309 178T316 232Q316 267 309 298T295 344T269 400L259 396Q215 381 183 342T137 256T118 179T112 130Z"></path><path id="MJX-4-TEX-I-1D460" d="M131 289Q131 321 147 354T203 415T300 442Q362 442 390 415T419 355Q419 323 402 308T364 292Q351 292 340 300T328 326Q328 342 337 354T354 372T367 378Q368 378 368 379Q368 382 361 388T336 399T297 405Q249 405 227 379T204 326Q204 301 223 291T278 274T330 259Q396 230 396 163Q396 135 385 107T352 51T289 7T195 -10Q118 -10 86 19T53 87Q53 126 74 143T118 160Q133 160 146 151T160 120Q160 94 142 76T111 58Q109 57 108 57T107 55Q108 52 115 47T146 34T201 27Q237 27 263 38T301 66T318 97T323 122Q323 150 302 164T254 181T195 196T148 231Q131 256 131 289Z"></path><path id="MJX-4-TEX-N-2C" d="M78 35T78 60T94 103T137 121Q165 121 187 96T210 8Q210 -27 201 -60T180 -117T154 -158T130 -185T117 -194Q113 -194 104 -185T95 -172Q95 -168 106 -156T131 -126T157 -76T173 -3V9L172 8Q170 7 167 6T161 3T152 1T140 0Q113 0 96 17Z"></path><path id="MJX-4-TEX-N-30" d="M96 585Q152 666 249 666Q297 666 345 640T423 548Q460 465 460 320Q460 165 417 83Q397 41 362 16T301 -15T250 -22Q224 -22 198 -16T137 16T82 83Q39 165 39 320Q39 494 96 585ZM321 597Q291 629 250 629Q208 629 178 597Q153 571 145 525T137 333Q137 175 145 125T181 46Q209 16 250 16Q290 16 318 46Q347 76 354 130T362 333Q362 478 354 524T321 597Z"></path><path id="MJX-4-TEX-LO-29" d="M35 1138Q35 1150 51 1150H56H69Q113 1113 153 1069T243 944T330 771T391 541T416 250T391 -40T330 -270T243 -443T152 -568T69 -649H56Q43 -649 39 -647T35 -637Q65 -607 110 -548Q283 -316 316 56Q324 133 324 251Q324 368 316 445Q278 877 48 1123Q36 1137 35 1138Z"></path><path id="MJX-4-TEX-I-1D6FE" d="M31 249Q11 249 11 258Q11 275 26 304T66 365T129 418T206 441Q233 441 239 440Q287 429 318 386T371 255Q385 195 385 170Q385 166 386 166L398 193Q418 244 443 300T486 391T508 430Q510 431 524 431H537Q543 425 543 422Q543 418 522 378T463 251T391 71Q385 55 378 6T357 -100Q341 -165 330 -190T303 -216Q286 -216 286 -188Q286 -138 340 32L346 51L347 69Q348 79 348 100Q348 257 291 317Q251 355 196 355Q148 355 108 329T51 260Q49 251 47 251Q45 249 31 249Z"></path></defs><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="scale(1,-1)"><g data-mml-node="math"><g data-mml-node="msub"><g data-mml-node="TeXAtom" data-mjx-texclass="ORD"><g data-mml-node="mover"><g data-mml-node="mi"><use data-c="1D445" xlink:href="#MJX-4-TEX-I-1D445"></use></g><g data-mml-node="mo" transform="translate(462.8,573) translate(-250 0)"><use data-c="7E" xlink:href="#MJX-4-TEX-N-7E"></use></g></g></g><g data-mml-node="mi" transform="translate(792,-150) scale(0.707)"><use data-c="1D456" xlink:href="#MJX-4-TEX-I-1D456"></use></g></g><g data-mml-node="mo" transform="translate(1363.7,0)"><use data-c="3D" xlink:href="#MJX-4-TEX-N-3D"></use></g><g data-mml-node="msub" transform="translate(2419.5,0)"><g data-mml-node="mi"><use data-c="1D445" xlink:href="#MJX-4-TEX-I-1D445"></use></g><g data-mml-node="mi" transform="translate(792,-150) scale(0.707)"><use data-c="1D456" xlink:href="#MJX-4-TEX-I-1D456"></use></g></g><g data-mml-node="mo" transform="translate(3727.7,0)"><use data-c="2212" xlink:href="#MJX-4-TEX-N-2212"></use></g><g data-mml-node="TeXAtom" data-mjx-texclass="ORD" transform="translate(4727.9,0)"><g data-mml-node="mn"><text data-variant="double-struck" transform="scale(1,-1)" font-size="884px">𝟙</text></g></g><g data-mml-node="mo" transform="translate(5327.9,0)"><use data-c="5B" xlink:href="#MJX-4-TEX-N-5B"></use></g><g data-mml-node="mi" transform="translate(5605.9,0)"><use data-c="1D456" xlink:href="#MJX-4-TEX-I-1D456"></use></g><g data-mml-node="mo" transform="translate(6228.7,0)"><use data-c="2208" xlink:href="#MJX-4-TEX-N-2208"></use></g><g data-mml-node="msub" transform="translate(7173.5,0)"><g data-mml-node="mi"><use data-c="1D443" xlink:href="#MJX-4-TEX-I-1D443"></use></g><g data-mml-node="mi" transform="translate(675,-150) scale(0.707)"><use data-c="1D45E" xlink:href="#MJX-4-TEX-I-1D45E"></use></g></g><g data-mml-node="mo" transform="translate(8223.7,0)"><use data-c="5D" xlink:href="#MJX-4-TEX-N-5D"></use></g><g data-mml-node="mstyle" transform="translate(8501.7,0)"><g data-mml-node="mspace"></g></g><g data-mml-node="mi" transform="translate(8668.7,0)"><use data-c="1D44B" xlink:href="#MJX-4-TEX-I-1D44B"></use></g><g data-mml-node="mo" transform="translate(9743,0)"><use data-c="22C5" xlink:href="#MJX-4-TEX-N-22C5"></use></g><g data-mml-node="mi" transform="translate(10243.2,0)"><use data-c="63" xlink:href="#MJX-4-TEX-N-63"></use><use data-c="6C" xlink:href="#MJX-4-TEX-N-6C" transform="translate(444,0)"></use><use data-c="69" xlink:href="#MJX-4-TEX-N-69" transform="translate(722,0)"></use><use data-c="70" xlink:href="#MJX-4-TEX-N-70" transform="translate(1000,0)"></use></g><g data-mml-node="mstyle" transform="translate(11799.2,0)"><g data-mml-node="mspace"></g></g><g data-mml-node="msup" transform="translate(11798.8,0)"><g data-mml-node="mrow"><g data-mml-node="mo" transform="translate(0 -0.5)"><use data-c="28" xlink:href="#MJX-4-TEX-LO-28"></use></g><g data-mml-node="mstyle" transform="translate(597,0)"><g data-mml-node="mfrac"><g data-mml-node="mrow" transform="translate(220,611.7) scale(0.707)"><g data-mml-node="msub"><g data-mml-node="mi"><use data-c="2113" xlink:href="#MJX-4-TEX-I-2113"></use></g><g data-mml-node="mi" transform="translate(450,-150) scale(0.707)"><use data-c="1D456" xlink:href="#MJX-4-TEX-I-1D456"></use></g></g><g data-mml-node="TeXAtom" data-mjx-texclass="ORD" transform="translate(744,0)"><g data-mml-node="mo"><use data-c="2F" xlink:href="#MJX-4-TEX-N-2F"></use></g></g><g data-mml-node="msubsup" transform="translate(1244,0)"><g data-mml-node="mi"><use data-c="2113" xlink:href="#MJX-4-TEX-I-2113"></use></g><g data-mml-node="mo" transform="translate(450,363) scale(0.707)"><use data-c="22C6" xlink:href="#MJX-4-TEX-N-22C6"></use></g><g data-mml-node="mi" transform="translate(450,-247) scale(0.707)"><use data-c="1D45E" xlink:href="#MJX-4-TEX-I-1D45E"></use></g></g><g data-mml-node="mo" transform="translate(2097.5,0)"><use data-c="2212" xlink:href="#MJX-4-TEX-N-2212"></use></g><g data-mml-node="mn" transform="translate(2875.5,0)"><use data-c="31" xlink:href="#MJX-4-TEX-N-31"></use></g><g data-mml-node="mo" transform="translate(3375.5,0)"><use data-c="2212" xlink:href="#MJX-4-TEX-N-2212"></use></g><g data-mml-node="mi" transform="translate(4153.5,0)"><use data-c="1D6FF" xlink:href="#MJX-4-TEX-I-1D6FF"></use></g></g><g data-mml-node="mrow" transform="translate(1247.6,-347) scale(0.707)"><g data-mml-node="mi"><use data-c="1D460" xlink:href="#MJX-4-TEX-I-1D460"></use></g><g data-mml-node="mo" transform="translate(469,0)"><use data-c="2212" xlink:href="#MJX-4-TEX-N-2212"></use></g><g data-mml-node="mi" transform="translate(1247,0)"><use data-c="1D6FF" xlink:href="#MJX-4-TEX-I-1D6FF"></use></g></g><rect width="3450.9" height="60" x="120" y="220"></rect></g></g><g data-mml-node="mo" transform="translate(4287.9,0)"><use data-c="2C" xlink:href="#MJX-4-TEX-N-2C"></use></g><g data-mml-node="mn" transform="translate(4732.6,0)"><use data-c="30" xlink:href="#MJX-4-TEX-N-30"></use></g><g data-mml-node="mo" transform="translate(5232.6,0)"><use data-c="2C" xlink:href="#MJX-4-TEX-N-2C"></use></g><g data-mml-node="mn" transform="translate(5677.3,0)"><use data-c="31" xlink:href="#MJX-4-TEX-N-31"></use></g><g data-mml-node="mo" transform="translate(6177.3,0) translate(0 -0.5)"><use data-c="29" xlink:href="#MJX-4-TEX-LO-29"></use></g></g><g data-mml-node="TeXAtom" transform="translate(6807.3,876.6) scale(0.707)" data-mjx-texclass="ORD"><g data-mml-node="mi"><use data-c="1D6FE" xlink:href="#MJX-4-TEX-I-1D6FE"></use></g></g></g></g></g></svg></mjx-container></div>
+        </div>
+        <div class="box">
+          <h4>세그먼트 단위 행동 페널티</h4>
+          <p>깨진 markup, 없는 도구 이름, 잘못된 인자를 낸 토큰을 표시합니다. 성공 궤적에서는 그 토큰의 advantage를 0으로, 실패 궤적에서는 <mjx-container class="MathJax" jax="SVG"><svg style="vertical-align: -0.09ex;" xmlns="http://www.w3.org/2000/svg" width="5.451ex" height="1.597ex" role="img" focusable="false" viewBox="0 -666 2409.6 706" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><path id="MJX-15-TEX-I-1D705" d="M83 -11Q70 -11 62 -4T51 8T49 17Q49 30 96 217T147 414Q160 442 193 442Q205 441 213 435T223 422T225 412Q225 401 208 337L192 270Q193 269 208 277T235 292Q252 304 306 349T396 412T467 431Q489 431 500 420T512 391Q512 366 494 347T449 327Q430 327 418 338T405 368Q405 370 407 380L397 375Q368 360 315 315L253 266L240 257H245Q262 257 300 251T366 230Q422 203 422 150Q422 140 417 114T411 67Q411 26 437 26Q484 26 513 137Q516 149 519 151T535 153Q554 153 554 144Q554 121 527 64T457 -7Q447 -10 431 -10Q386 -10 360 17T333 90Q333 108 336 122T339 146Q339 170 320 186T271 209T222 218T185 221H180L155 122Q129 22 126 16Q113 -11 83 -11Z"></path><path id="MJX-15-TEX-N-3E" d="M84 520Q84 528 88 533T96 539L99 540Q106 540 253 471T544 334L687 265Q694 260 694 250T687 235Q685 233 395 96L107 -40H101Q83 -38 83 -20Q83 -19 83 -17Q82 -10 98 -1Q117 9 248 71Q326 108 378 132L626 250L378 368Q90 504 86 509Q84 513 84 520Z"></path><path id="MJX-15-TEX-N-31" d="M213 578L200 573Q186 568 160 563T102 556H83V602H102Q149 604 189 617T245 641T273 663Q275 666 285 666Q294 666 302 660V361L303 61Q310 54 315 52T339 48T401 46H427V0H416Q395 3 257 3Q121 3 100 0H88V46H114Q136 46 152 46T177 47T193 50T201 52T207 57T213 61V578Z"></path></defs><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="scale(1,-1)"><g data-mml-node="math"><g data-mml-node="mi"><use data-c="1D705" xlink:href="#MJX-15-TEX-I-1D705"></use></g><g data-mml-node="mo" transform="translate(853.8,0)"><use data-c="3E" xlink:href="#MJX-15-TEX-N-3E"></use></g><g data-mml-node="mn" transform="translate(1909.6,0)"><use data-c="31" xlink:href="#MJX-15-TEX-N-31"></use></g></g></g></svg></mjx-container>배로 키웁니다. 뺀 양수는 표시 안 된 양수 토큰에, 더한 음수는 표시 안 된 음수 토큰을 덜 벌하는 데 돌려 부호별 총량을 보존합니다.</p>
+        </div>
+      </div>
+      <p class="sub"><mjx-container class="MathJax" jax="SVG"><svg style="vertical-align: -0.489ex;" xmlns="http://www.w3.org/2000/svg" width="15.975ex" height="2.111ex" role="img" focusable="false" viewBox="0 -717 7061 933" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><path id="MJX-16-TEX-I-1D434" d="M208 74Q208 50 254 46Q272 46 272 35Q272 34 270 22Q267 8 264 4T251 0Q249 0 239 0T205 1T141 2Q70 2 50 0H42Q35 7 35 11Q37 38 48 46H62Q132 49 164 96Q170 102 345 401T523 704Q530 716 547 716H555H572Q578 707 578 706L606 383Q634 60 636 57Q641 46 701 46Q726 46 726 36Q726 34 723 22Q720 7 718 4T704 0Q701 0 690 0T651 1T578 2Q484 2 455 0H443Q437 6 437 9T439 27Q443 40 445 43L449 46H469Q523 49 533 63L521 213H283L249 155Q208 86 208 74ZM516 260Q516 271 504 416T490 562L463 519Q447 492 400 412L310 260L413 259Q516 259 516 260Z"></path><path id="MJX-16-TEX-N-2C" d="M78 35T78 60T94 103T137 121Q165 121 187 96T210 8Q210 -27 201 -60T180 -117T154 -158T130 -185T117 -194Q113 -194 104 -185T95 -172Q95 -168 106 -156T131 -126T157 -76T173 -3V9L172 8Q170 7 167 6T161 3T152 1T140 0Q113 0 96 17Z"></path><path id="MJX-16-TEX-I-1D435" d="M231 637Q204 637 199 638T194 649Q194 676 205 682Q206 683 335 683Q594 683 608 681Q671 671 713 636T756 544Q756 480 698 429T565 360L555 357Q619 348 660 311T702 219Q702 146 630 78T453 1Q446 0 242 0Q42 0 39 2Q35 5 35 10Q35 17 37 24Q42 43 47 45Q51 46 62 46H68Q95 46 128 49Q142 52 147 61Q150 65 219 339T288 628Q288 635 231 637ZM649 544Q649 574 634 600T585 634Q578 636 493 637Q473 637 451 637T416 636H403Q388 635 384 626Q382 622 352 506Q352 503 351 500L320 374H401Q482 374 494 376Q554 386 601 434T649 544ZM595 229Q595 273 572 302T512 336Q506 337 429 337Q311 337 310 336Q310 334 293 263T258 122L240 52Q240 48 252 48T333 46Q422 46 429 47Q491 54 543 105T595 229Z"></path><path id="MJX-16-TEX-I-1D44B" d="M42 0H40Q26 0 26 11Q26 15 29 27Q33 41 36 43T55 46Q141 49 190 98Q200 108 306 224T411 342Q302 620 297 625Q288 636 234 637H206Q200 643 200 645T202 664Q206 677 212 683H226Q260 681 347 681Q380 681 408 681T453 682T473 682Q490 682 490 671Q490 670 488 658Q484 643 481 640T465 637Q434 634 411 620L488 426L541 485Q646 598 646 610Q646 628 622 635Q617 635 609 637Q594 637 594 648Q594 650 596 664Q600 677 606 683H618Q619 683 643 683T697 681T738 680Q828 680 837 683H845Q852 676 852 672Q850 647 840 637H824Q790 636 763 628T722 611T698 593L687 584Q687 585 592 480L505 384Q505 383 536 304T601 142T638 56Q648 47 699 46Q734 46 734 37Q734 35 732 23Q728 7 725 4T711 1Q708 1 678 1T589 2Q528 2 496 2T461 1Q444 1 444 10Q444 11 446 25Q448 35 450 39T455 44T464 46T480 47T506 54Q523 62 523 64Q522 64 476 181L429 299Q241 95 236 84Q232 76 232 72Q232 53 261 47Q262 47 267 47T273 46Q276 46 277 46T280 45T283 42T284 35Q284 26 282 19Q279 6 276 4T261 1Q258 1 243 1T201 2T142 2Q64 2 42 0Z"></path><path id="MJX-16-TEX-I-1D6FF" d="M195 609Q195 656 227 686T302 717Q319 716 351 709T407 697T433 690Q451 682 451 662Q451 644 438 628T403 612Q382 612 348 641T288 671T249 657T235 628Q235 584 334 463Q401 379 401 292Q401 169 340 80T205 -10H198Q127 -10 83 36T36 153Q36 286 151 382Q191 413 252 434Q252 435 245 449T230 481T214 521T201 566T195 609ZM112 130Q112 83 136 55T204 27Q233 27 256 51T291 111T309 178T316 232Q316 267 309 298T295 344T269 400L259 396Q215 381 183 342T137 256T118 179T112 130Z"></path><path id="MJX-16-TEX-I-1D460" d="M131 289Q131 321 147 354T203 415T300 442Q362 442 390 415T419 355Q419 323 402 308T364 292Q351 292 340 300T328 326Q328 342 337 354T354 372T367 378Q368 378 368 379Q368 382 361 388T336 399T297 405Q249 405 227 379T204 326Q204 301 223 291T278 274T330 259Q396 230 396 163Q396 135 385 107T352 51T289 7T195 -10Q118 -10 86 19T53 87Q53 126 74 143T118 160Q133 160 146 151T160 120Q160 94 142 76T111 58Q109 57 108 57T107 55Q108 52 115 47T146 34T201 27Q237 27 263 38T301 66T318 97T323 122Q323 150 302 164T254 181T195 196T148 231Q131 256 131 289Z"></path><path id="MJX-16-TEX-I-1D6FE" d="M31 249Q11 249 11 258Q11 275 26 304T66 365T129 418T206 441Q233 441 239 440Q287 429 318 386T371 255Q385 195 385 170Q385 166 386 166L398 193Q418 244 443 300T486 391T508 430Q510 431 524 431H537Q543 425 543 422Q543 418 522 378T463 251T391 71Q385 55 378 6T357 -100Q341 -165 330 -190T303 -216Q286 -216 286 -188Q286 -138 340 32L346 51L347 69Q348 79 348 100Q348 257 291 317Q251 355 196 355Q148 355 108 329T51 260Q49 251 47 251Q45 249 31 249Z"></path><path id="MJX-16-TEX-I-1D705" d="M83 -11Q70 -11 62 -4T51 8T49 17Q49 30 96 217T147 414Q160 442 193 442Q205 441 213 435T223 422T225 412Q225 401 208 337L192 270Q193 269 208 277T235 292Q252 304 306 349T396 412T467 431Q489 431 500 420T512 391Q512 366 494 347T449 327Q430 327 418 338T405 368Q405 370 407 380L397 375Q368 360 315 315L253 266L240 257H245Q262 257 300 251T366 230Q422 203 422 150Q422 140 417 114T411 67Q411 26 437 26Q484 26 513 137Q516 149 519 151T535 153Q554 153 554 144Q554 121 527 64T457 -7Q447 -10 431 -10Q386 -10 360 17T333 90Q333 108 336 122T339 146Q339 170 320 186T271 209T222 218T185 221H180L155 122Q129 22 126 16Q113 -11 83 -11Z"></path></defs><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="scale(1,-1)"><g data-mml-node="math"><g data-mml-node="mi"><use data-c="1D434" xlink:href="#MJX-16-TEX-I-1D434"></use></g><g data-mml-node="mo" transform="translate(750,0)"><use data-c="2C" xlink:href="#MJX-16-TEX-N-2C"></use></g><g data-mml-node="mi" transform="translate(1194.7,0)"><use data-c="1D435" xlink:href="#MJX-16-TEX-I-1D435"></use></g><g data-mml-node="mo" transform="translate(1953.7,0)"><use data-c="2C" xlink:href="#MJX-16-TEX-N-2C"></use></g><g data-mml-node="mi" transform="translate(2398.3,0)"><use data-c="1D44B" xlink:href="#MJX-16-TEX-I-1D44B"></use></g><g data-mml-node="mo" transform="translate(3250.3,0)"><use data-c="2C" xlink:href="#MJX-16-TEX-N-2C"></use></g><g data-mml-node="mi" transform="translate(3695,0)"><use data-c="1D6FF" xlink:href="#MJX-16-TEX-I-1D6FF"></use></g><g data-mml-node="mo" transform="translate(4139,0)"><use data-c="2C" xlink:href="#MJX-16-TEX-N-2C"></use></g><g data-mml-node="mi" transform="translate(4583.7,0)"><use data-c="1D460" xlink:href="#MJX-16-TEX-I-1D460"></use></g><g data-mml-node="mo" transform="translate(5052.7,0)"><use data-c="2C" xlink:href="#MJX-16-TEX-N-2C"></use></g><g data-mml-node="mi" transform="translate(5497.3,0)"><use data-c="1D6FE" xlink:href="#MJX-16-TEX-I-1D6FE"></use></g><g data-mml-node="mo" transform="translate(6040.3,0)"><use data-c="2C" xlink:href="#MJX-16-TEX-N-2C"></use></g><g data-mml-node="mi" transform="translate(6485,0)"><use data-c="1D705" xlink:href="#MJX-16-TEX-I-1D705"></use></g></g></g></svg></mjx-container>와 GAR의 factor·상한 값은 리포트에 나오지 않습니다. 공개 학습 대시보드 로그로 역산한 값(factor 1 / 0.625 / 0.2, 상한 1.5 등)은 <a href="https://claude.ai/artifact/TQAra56MXt3Uidu4uXgXsh">별도 역산 페이지</a>에 정리했습니다.</p>
+    </section>
+
+    <!-- RUN -->
+    <section id="run">
+      <div class="chap">리포트 5.1~5.5절</div>
+      <h2>실험: 단 한 번의 30스텝 RL</h2>
+      <p class="q-line">5장의 부제는 "You Only RL Once"입니다. 여러 번 돌려 고르는 대신 한 번의 계획된 런을 끝까지 운영했고, 학습 로그를 실시간으로 공개했습니다.</p>
+
+      <h3>학습 설정</h3>
+      <div class="tbl">
+        <table>
+          <tbody>
+            <tr><td>과제 비중</td><td>에이전트·경쟁 코딩 68%, 미적 디자인 13%, 범용 도구 사용 12%, 사이버보안 4%, 문맥 따르기 3%</td></tr>
+            <tr><td>알고리즘</td><td>GRPO, partial rollout (staleness 4). 리포트 표현은 "fully asynchronous"이지만 생성과 학습은 번갈아 돈 것으로 보임 (리포트 4.1절 부분 참고)</td></tr>
+            <tr><td>옵티마이저</td><td>Muown, lr 3e-6, warmup·weight decay 없음, grad clip 1.0, Nesterov momentum 0.95, Newton–Schulz 10회. Adam 부분은 β₁ = β₂ = 0.95</td></tr>
+            <tr><td>loss 집계</td><td>프롬프트 단위 평균. 토큰 전체 평균보다 응답 길이 증가가 느림</td></tr>
+            <tr><td>중요도 비율</td><td>토큰별 학습/롤아웃 확률비. 양수·음수 advantage에 따로 경계를 두고(초기 [0.2, 5.0]) 엔트로피가 낮으면 양수 경계를 넓히고 음수 경계를 좁힘</td></tr>
+            <tr><td>기타</td><td>SFT의 FP32 master weight와 Muown 상태를 이어받아 MXFP4 학습 안정화. router 고정</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Router를 얼린 이유</h3>
+      <p>router를 학습 가능하게 두고 Pro를 돌리면 20스텝 만에 layer 9의 expert 부하가 무너졌습니다. step 20 checkpoint에서 router만 RL 전 값으로 되돌리면 부하는 회복되고 벤치마크는 그대로였으므로, 원인은 expert 가중치가 아니라 router 표류였습니다.</p>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>layer 9 지표</th><th class="n">router 학습 (step 0 → 20)</th><th class="n">router 고정</th></tr></thead>
+          <tbody>
+            <tr><td>부하 변동계수 (std / mean)</td><td class="n">0.78 → 2.0</td><td class="n">≈ 0.7</td></tr>
+            <tr><td>최대 부하 (max / mean)</td><td class="n">6× → 16×</td><td class="n">≈ 5.5×</td></tr>
+            <tr><td>차가운 expert (평균의 0.1배 미만)</td><td class="n">0.5% → 22%</td><td class="n">≈ 1%</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>무엇이 멈춰 세웠나</h3>
+      <p>30스텝에 <span class="pr">Pro는 123.1시간</span><span class="fl">Flash는 81.8시간</span>이 걸렸습니다. 중단 원인은 네 종류입니다.</p>
+      <ul class="tl">
+        <li><span class="when">인프라</span><p>주로 GPU 메모리 double-bit error. Pro는 step 14 뒤 grader가 네트워크에서 끊겨, Flash는 step 15~16 사이 Kubernetes 장애로 cyber 클러스터 pod가 죽어 재시작</p></li>
+        <li><span class="when">추론</span><p>재시작 직후 짧은 롤아웃이 먼저 끝나 길이 추정이 치우치고 KV 풀이 고갈. 한 하니스가 같은 데이터셋에서 다른 하니스의 절반도 안 되는 길이를 내 추정을 흔듦</p></li>
+        <li><span class="when">학습</span><p>GPU OOM. 전체 배치는 고른데 micro-batch 하나에서 EP rank 하나가 평균의 30배 토큰을 받음. 병렬화를 바꿔 activation 메모리를 줄임</p></li>
+        <li><span class="when">드라이버</span><p>Flash 후반, 길어진 시퀀스를 packing하다 노드의 CPU 메모리가 넘침</p></li>
+      </ul>
+
+      <h3>얻은 것</h3>
+      <p>두 모델 모두 DeepSWE v1.1, AutomationBench v1.0.6, MiMo Visual Coding에서 체크포인트 간 요동은 있지만 전반적으로 올랐고, 총 토큰 사용량도 함께 늘었습니다. 리포트는 "성능 향상이 토큰 사용 증가와 함께 왔다"고 정리합니다.</p>
+    </section>
+
+    <!-- MOPD2 -->
+    <section id="mopd">
+      <div class="chap">리포트 5.6절</div>
+      <h2>MOPD2: 검증하기 어려운 능력은 증류로 붙인다</h2>
+      <p class="q-line">RL은 보상을 잴 수 있어야 합니다. 게임 개발, 과학 연구, embodied 과제처럼 채점기를 만들기 어려운 영역은 전문 교사 모델에게 배웁니다.</p>
+      <div class="grid3">
+        <div class="box">
+          <span class="tag">교사</span>
+          <h4>영역별 전문가</h4>
+          <p>검증 가능한 과제는 혼합 RL로 학습한 교사, 열린 과제는 고품질 합성 시연으로 SFT한 교사.</p>
+        </div>
+        <div class="box">
+          <span class="tag">Standard MOPD</span>
+          <h4>학생이 끝까지 생성</h4>
+          <p>학생이 전체 롤아웃을 만들고 RL 교사가 토큰 단위로 지도합니다(MiMo-V2-Flash 방식).</p>
+        </div>
+        <div class="box">
+          <span class="tag">Prefix-Conditioned OPD</span>
+          <h4>남의 궤적에서 한 턴만</h4>
+          <p>교사 롤아웃이나 SFT 데이터의 궤적에서 턴이 k개면 이력 prefix도 k개. 각 prefix에서 학생이 다음 한 턴만 생성하고 교사가 지도합니다. 긴 과제에서 학생이 초반부터 엇나가 교사가 본 적 없는 상태로 가는 문제를 줄입니다.</p>
+        </div>
+      </div>
+      <p>SFT 데이터는 "따라 써야 할 답"이 아니라 "문맥"으로만 쓰입니다. 학생은 그 문맥에서 자기 답을 생성하고, 교사가 그 답을 평가합니다. 최종 성능 표(표 3)는 이 단계를 거친 모델의 결과입니다.</p>
+    </section>
+
+    <!-- INFRA -->
+    <section id="infra">
+      <div class="chap">리포트 6장</div>
+      <h2>인프라: 25K 궤적을 한 스텝에 넣는 법</h2>
+      <p class="q-line">6장은 앞의 알고리즘을 실제로 돌리게 만든 장치들입니다. 문제와 해법을 짝지어 읽으면 빠릅니다.</p>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>문제</th><th>해법</th></tr></thead>
+          <tbody>
+            <tr><td>에이전트는 여러 턴, 서브에이전트, 문맥 압축으로 대화가 갈라짐</td><td><b>Agent Loop</b>가 환경 수명주기와 대화를 관리하고 추론은 token-in/token-out으로만 호출. 궤적을 Sample → Sequence → Context → Segment(턴) 4단계로 저장</td></tr>
+            <tr><td>결과 보상은 궤적 전체에 고르게 퍼짐</td><td><b>Penalty Module</b>: 탐지 규칙(수작업 또는 모델 judge)과 처리(mask, advantage set·scale·subtract, 기록)를 분리해 원하는 계층에 적용. 모델 탓이 아닌 infra 실패는 학습 신호에서 제외</td></tr>
+            <tr><td>하니스 인스턴스마다 Ray actor를 두면 GCS 노드의 파일 디스크립터가 고갈</td><td><b>Harness Pool</b>: 고정 크기의 영속 actor 풀에 여러 tenant를 태우고, 블로킹 작업은 백그라운드 스레드로</td></tr>
+            <tr><td>궤적마다 routing 기록, top-p 인덱스, 이미지까지 실려 드라이버 메모리가 한계</td><td><b>Payload Porter</b>: 무거운 데이터는 분산 KV 저장소에 한 번 쓰고, 드라이버는 메타데이터로만 스케줄링. packing도 TP 그룹별로 필요한 CP 창만 가져옴</td></tr>
+            <tr><td>25개 소스의 생성 토큰이 90배, 롤아웃 시간이 66배 차이</td><td><b>Sample Mixer</b>: 소스별 동시 실행 예산, 목표와 부족분을 반씩 섞은 스케줄링, KV 수요를 예측한 rank 배치, 재시작 첫 스텝의 롤아웃 재사용</td></tr>
+            <tr><td>학습과 추론 엔진의 수치 차이</td><td>매 업데이트 뒤 expert를 MXFP4로 QDQ해 두 엔진이 같은 가중치를 보게 함. expert 선택 기록 재생(R3). top-p 후보 집합을 bitmap으로 기록해 학습 확률도 그 안에서 재정규화(top-p 0.97이면 평균 5개 미만)</td></tr>
+            <tr><td>멀티턴에서 GPU 시간과 도구 대기 시간이 번갈아 옴</td><td><b>Context Cache</b>: 같은 정책 버전 안에서 KV를 재사용하고, 도구 대기 중에는 pinned host 메모리로 내렸다가 복귀</td></tr>
+            <tr><td>긴 생성의 디코딩 속도</td><td>RL 로그로 미세조정한 block-6 <b>DFlash</b>: 기존 MTP-3보다 평균 수락 길이 31.3% 증가, block-8보다 처리량 약 6% 높음, FP8 drafter로 노드당 처리량 약 10.3% 추가</td></tr>
+            <tr><td>1M 문맥 학습의 메모리와 통신</td><td>SWA층은 CP 통신이 창 크기로 묶임. optimizer 상태는 CPU에, 업데이트 때만 복사. policy gradient·OPD loss를 커널 하나로 융합</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- RESULTS -->
+    <section id="results">
+      <div class="chap">리포트 5.6절 · 표 3</div>
+      <h2>최종 성능: 프런티어와 나란히</h2>
+      <p class="q-line">MOPD2까지 거친 최종 모델입니다. 전 세대 V2.5 Pro와의 차이가 가장 크고, 몇몇 에이전트 벤치마크에서는 프런티어 모델과 같거나 앞섭니다.</p>
+      <div class="filters" role="group" aria-label="벤치마크 분야" id="benchFilters">
+        <button type="button" data-c="all" aria-pressed="true">전체</button>
+        <button type="button" data-c="code" aria-pressed="false">코드</button>
+        <button type="button" data-c="general" aria-pressed="false">범용</button>
+        <button type="button" data-c="cyber" aria-pressed="false">보안</button>
+        <button type="button" data-c="visual" aria-pressed="false">시각</button>
+      </div>
+      <div class="tbl">
+        <table id="bench">
+          <thead><tr><th>벤치마크</th><th class="v">V2.6 Pro</th><th class="v">V2.6 Flash</th><th class="v">V2.5 Pro</th><th class="v">Claude Opus 5</th><th class="v">GPT-5.6 Sol</th><th class="v">Claude Fable 5</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="sub">각 행의 굵은 값이 최고점, 아래 막대는 행 최댓값 대비 비율입니다. GDPval-AA는 Elo 점수입니다. 표에서 Pro의 DeepSWE는 71.9로, RL 30스텝 종료 시점(72.6)보다 조금 낮고 Flash는 67.9로 RL 종료 시점(65.7)보다 높습니다.</p>
+      <ul class="tight">
+        <li>V2.6이 앞선 곳: AutomationBench(Pro 53.1, 비교 모델 최고 50.3), Terminal Bench 2.1(89.9), Agents' Last Exam(공동 1위 31.6)</li>
+        <li>격차가 남은 곳: Terminal Bench 4.0(34.9 vs 49.0), ProgramBench(26.5 vs 37.0), 익스플로잇 계열(ExploitBench 47.9 vs 78.5)</li>
+        <li>보안은 재현(CyberGym 94~95)은 강하지만 공격 개발(ExploitGym 17.8)은 아직 약함</li>
+      </ul>
+    </section>
+
+    <!-- OPEN -->
+    <section id="open">
+      <div class="chap">리포트 7장</div>
+      <h2>공개한 것: 누구나 에이전트 RL을 시작할 수 있게</h2>
+      <p class="q-line">큰 모델 대신 재현 가능한 출발점을 공개했습니다. 9B 증류 모델, 검증기가 딸린 RL 환경, 끝단까지의 RL 프레임워크, 조합형 mini-harness입니다.</p>
+
+      <div class="grid2">
+        <div class="box">
+          <span class="tag">MiMo-V2.6-Distill-Qwen-9B</span>
+          <h4>Qwen3.5-9B에 MiMo의 궤적을 SFT</h4>
+          <p>총 77.4B 토큰(loss 토큰 27.2B)</p>
+          <div class="stack" role="img" aria-label="SFT 데이터 구성">
+            <span class="s1" style="width:29.9%">코드 29.9</span><span class="s4" style="width:14.2%">보안</span><span class="s3" style="width:28.5%">범용 28.5</span><span class="s2" style="width:27.4%">시각 27.4</span>
+          </div>
+          <div class="stack-legend"><span>% · 보안 14.2%</span></div>
+        </div>
+        <div class="box">
+          <span class="tag">RL 환경 · 약 7k 과제</span>
+          <h4>네 영역 + 음악</h4>
+          <ul>
+            <li>코드 3k · 실행 테스트</li>
+            <li>보안 1k · 규칙 검사</li>
+            <li>범용(지식 노동) 1k · 루브릭 채점</li>
+            <li>시각(웹 개발) 2k · 시각 채점</li>
+            <li>음악 생성 약 1k (내부 음악 벤치 45.7 → 52.5)</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>SFT만으로도, RL을 더하면 더</h3>
+      <p>같은 SFT 체크포인트에서 영역별로 GRPO를 따로 돌렸습니다. 보고된 11개 평가가 모두 올랐습니다.</p>
+      <div class="stack-legend" style="margin-bottom:6px"><span><i style="background:var(--other)"></i>Qwen3.5-9B</span><span><i style="background:var(--flash);opacity:.55"></i>증류 SFT</span><span><i style="background:var(--accent)"></i>+ RL</span></div>
+      <div class="grow" id="grow"></div>
+
+      <h3>9B에서도 multi-harness가 통한다</h3>
+      <p>코드 과제를 mini-harness 4개로 함께 학습하고 학습에 안 쓴 하니스 3개(codex, claude code, mini-swe-agent)까지 7개로 평가했습니다. 21개 (데이터셋, 하니스) 조합 모두에서 증류가 원본을, RL이 증류를 이겼습니다.</p>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>7개 하니스 평균</th><th class="n">Qwen3.5-9B</th><th class="n">증류 SFT</th><th class="n">+ Multi-harness RL</th></tr></thead>
+          <tbody>
+            <tr><td>SWE-bench Verified</td><td class="n">53.1</td><td class="n">62.3</td><td class="n">65.7</td></tr>
+            <tr><td>SWE-bench Pro</td><td class="n">27.5</td><td class="n">44.4</td><td class="n">46.5</td></tr>
+            <tr><td>MiMo Code Bench (mini)</td><td class="n">15.3</td><td class="n">53.1</td><td class="n">59.0</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="close">
+      <div class="chap">리포트 8장</div>
+      <h2>이 리포트를 한 문단으로</h2>
+      <div class="col">
+        <p>MiMo-V2.6은 긴 문맥을 싸게 처리하는 하이브리드 SWA MoE 위에, 에이전트 궤적 중심의 중간학습과 Muon 전환으로 큰 배치 RL을 준비했습니다. 그다음 한 번의 30스텝 혼합 RL에 연산을 세 방향으로 쏟았습니다. 배치와 처리량, 환경과 하니스의 다양성, 그리고 통과한 해답끼리 비교하는 에이전트 채점입니다. 이 채점(GRS, GAR)이 길이 폭주와 "통과용 우회"를 누르면서 성능을 계속 끌어올린 핵심 장치로 제시됩니다. 검증이 어려운 능력은 MOPD2 증류로 붙였고, 같은 레시피를 9B 모델과 환경으로 공개해 재현 가능한 출발점을 남겼습니다.</p>
+        <p class="sub">리포트가 밝히지 않은 것: 길이 페널티와 세그먼트 페널티의 상수, GAR factor와 상한 값, 30스텝으로 정한 이유, IS 경계의 조정 궤적.</p>
+      </div>
+    </section>
+
+    <footer>
+      출처: MiMo-V2.6 Technical Report(44쪽, 2026-09-22 생성). 모든 수치는 리포트 본문과 표 1~7, 그림 3·8~12에서 옮겼습니다. 역산 수치는 별도 페이지에서 다룹니다. 이 페이지는 리포트 요약이며 공식 자료가 아닙니다.
+    </footer>
+  </div>
+</div>
+
+<script>
+(function () {
+  var app = document.getElementById('app');
+
+  // model toggle
+  function setModel(m) {
+    app.setAttribute('data-model', m);
+    document.querySelectorAll('.toggle button').forEach(function (b) {
+      b.setAttribute('aria-pressed', b.getAttribute('data-m') === m ? 'true' : 'false');
+    });
+    drawLayers(m);
+    try { localStorage.setItem('mimo-guide-model', m); } catch (e) {}
+  }
+  document.querySelectorAll('.toggle button').forEach(function (b) {
+    b.addEventListener('click', function () { setModel(b.getAttribute('data-m')); });
+  });
+
+  // layer proportion strip
+  function drawLayers(m) {
+    var total = m === 'pro' ? 70 : 48, ga = m === 'pro' ? 10 : 9;
+    var el = document.getElementById('layers');
+    el.innerHTML = '';
+    var swa = total - ga;
+    // spread GA cells evenly among SWA for a proportion view
+    var out = ['ga0'];
+    var rest = total - 1, gaLeft = ga - 1;
+    var step = rest / gaLeft;
+    var gaPos = {};
+    for (var k = 1; k <= gaLeft; k++) gaPos[Math.round(k * step)] = true;
+    for (var p = 1; p <= rest; p++) out.push(gaPos[p] ? 'ga' : '');
+    out.forEach(function (c) { var s = document.createElement('i'); if (c) s.className = c; el.appendChild(s); });
+    el.setAttribute('aria-label', (m === 'pro' ? 'Pro' : 'Flash') + ': 전체 ' + total + '층 중 GA ' + ga + '층, SWA ' + swa + '층');
+  }
+
+  // benchmark table
+  var B = [
+    ['code', 'DeepSWE v1.1', [71.9, 67.9, 19.0, 74.0, 73.0, 70.0]],
+    ['code', 'ProgramBench', [26.5, 26.0, 12.5, 37.0, 25.0, 33.0]],
+    ['code', 'MiMo Code Bench', [63.2, 61.2, 40.4, 68.6, 59.3, null]],
+    ['general', 'AutomationBench v1.0.6', [53.1, 52.3, 16.0, 50.3, 45.8, 46.2]],
+    ['general', 'Toolathlon-Verified', [76.9, 73.6, 49.1, 80.6, 74.9, 77.9]],
+    ['general', 'GDPval-AA 2.1 (Elo)', [1673, null, 1107, 1708, 1588, 1595]],
+    ['general', "Agents' Last Exam", [31.6, 27.6, 13.2, 31.6, 30.8, 25.7]],
+    ['general', 'Terminal Bench 4.0', [34.9, 28.8, 1.5, 49.0, 39.9, 42.4]],
+    ['general', 'Terminal Bench 2.1', [89.9, 87.6, 65.2, 89.1, 88.8, 84.3]],
+    ['general', 'OSWorld-Verified', [82.0, 80.8, null, 83.4, 83.0, 86.0]],
+    ['general', 'JobBench', [62.0, 61.2, 25.0, 65.7, 45.4, 57.4]],
+    ['cyber', 'CyberGym', [94.0, 95.1, 40.0, null, null, null]],
+    ['cyber', 'MiMo Cyber Bench', [80.2, 77.2, 0.0, null, null, null]],
+    ['cyber', 'ExploitGym', [17.8, 6.0, 0.2, 22.1, 30.3, 28.4]],
+    ['cyber', 'ExploitBench', [47.9, 25.3, 16.6, 70.0, 78.5, 78.0]],
+    ['cyber', 'SEC Bench Pro', [66.3, 47.5, 17.7, null, 79.1, null]],
+    ['visual', 'MiMo Visual Coding', [72.3, 71.5, null, 70.0, 73.4, 69.1]]
+  ];
+  var CAT = { code: '코드 에이전트', general: '범용 에이전트', cyber: '사이버보안', visual: '시각 에이전트' };
+  var tbody = document.querySelector('#bench tbody');
+  function drawBench(c) {
+    tbody.innerHTML = '';
+    var last = '';
+    B.forEach(function (r) {
+      if (c !== 'all' && r[0] !== c) return;
+      if (r[0] !== last) {
+        var g = document.createElement('tr'); g.className = 'grp';
+        var gt = document.createElement('td'); gt.colSpan = 7; gt.textContent = CAT[r[0]];
+        g.appendChild(gt); tbody.appendChild(g); last = r[0];
+      }
+      var vals = r[2].filter(function (v) { return v !== null; });
+      var max = Math.max.apply(null, vals);
+      var tr = document.createElement('tr');
+      var th = document.createElement('td'); th.textContent = r[1]; tr.appendChild(th);
+      r[2].forEach(function (v, i) {
+        var td = document.createElement('td');
+        td.className = 'v' + (i === 0 ? ' m-pro' : i === 1 ? ' m-flash' : '') + (v === max ? ' best' : '');
+        if (v === null) { td.textContent = '–'; }
+        else {
+          td.textContent = (r[1].indexOf('Elo') > -1) ? String(v) : v.toFixed(1);
+          var bar = document.createElement('span'); bar.className = 'bv';
+          bar.style.width = Math.max(4, (v / max) * 100) + '%';
+          td.appendChild(bar);
+        }
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  }
+  document.querySelectorAll('#benchFilters button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('#benchFilters button').forEach(function (x) { x.setAttribute('aria-pressed', 'false'); });
+      b.setAttribute('aria-pressed', 'true');
+      drawBench(b.getAttribute('data-c'));
+    });
+  });
+  drawBench('all');
+
+  // SFT -> RL growth
+  var G = [
+    ['SWE-bench Verified', 60.0, 61.1, 66.2],
+    ['SWE-bench Pro', 32.0, 44.6, 47.6],
+    ['MiMo Code Bench (mini)', 19.5, 51.6, 59.9],
+    ['MiMo Cyber Bench (mini)', 5.7, 31.3, 47.0],
+    ['AutomationBench v1.0.6', 5.0, 30.3, 33.1],
+    ['Terminal Bench 2.1', 27.0, 37.1, 52.8],
+    ['Toolathlon-Verified', 25.9, 35.2, 38.0],
+    ['OfficeQA Pro', 9.0, 19.5, 24.8],
+    ['JobBench', 2.6, 18.3, 25.2],
+    ['MiMo General Bench (mini)', 28.5, 62.2, 70.6],
+    ['MiMo Visual Coding (mini)', 61.7, 64.0, 72.4]
+  ];
+  var grow = document.getElementById('grow');
+  G.forEach(function (r) {
+    var row = document.createElement('div'); row.className = 'grow-row';
+    row.setAttribute('role', 'img');
+    row.setAttribute('aria-label', r[0] + ': Qwen3.5-9B ' + r[1] + ', SFT ' + r[2] + ', RL ' + r[3]);
+    var l = document.createElement('span'); l.textContent = r[0];
+    var t = document.createElement('div'); t.className = 'trk';
+    [['b', r[2]], ['a', r[1]], ['c', r[3]]].forEach(function (p) {
+      var s = document.createElement('span'); s.className = p[0]; s.style.width = p[1] + '%'; t.appendChild(s);
+    });
+    var n = document.createElement('span'); n.className = 'num'; n.textContent = r[1].toFixed(1) + ' → ' + r[2].toFixed(1) + ' → ' + r[3].toFixed(1);
+    row.appendChild(l); row.appendChild(t); row.appendChild(n);
+    grow.appendChild(row);
+  });
+
+  var saved = 'pro';
+  try { saved = localStorage.getItem('mimo-guide-model') || 'pro'; } catch (e) {}
+  setModel(saved === 'flash' ? 'flash' : 'pro');
+})();
+</script>
+
+</body></html>
