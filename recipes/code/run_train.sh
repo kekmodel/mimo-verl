@@ -139,6 +139,21 @@ fi
 export EXP_NAME TENSORBOARD_DIR AGENT_DEBUG_DIR UNI_AGENT_LOG_DIR KUBECONFIG
 
 WORKER_LD=""
+# GAR with an LLM API grader: GAR_ENABLE=true GAR_GRADER_URL=... GAR_GRADER_MODEL=...
+# GAR_GRADER_API=chat|responses|anthropic. The key is read on the trainer node from
+# GAR_GRADER_API_KEY (that process's environment) or algorithm.gar.grader.kwargs.api_key_file.
+GAR_ENABLE="${GAR_ENABLE:-false}"
+if [ "${GAR_ENABLE}" = "true" ] || [ "${GAR_ENABLE}" = "True" ]; then
+  if [ -z "${GAR_GRADER_URL:-}" ] || [ -z "${GAR_GRADER_MODEL:-}" ]; then
+    echo "GAR_ENABLE=true needs GAR_GRADER_URL and GAR_GRADER_MODEL" >&2
+    exit 1
+  fi
+  case "${GAR_GRADER_API:-chat}" in
+    chat|responses|anthropic) ;;
+    *) echo "GAR_GRADER_API must be chat, responses or anthropic, got ${GAR_GRADER_API}" >&2; exit 1 ;;
+  esac
+fi
+
 if [ "${SKIP_CLUSTER_CHECK:-0}" != "1" ]; then
   IFS=: read -r -a PYTHONPATH_ENTRIES <<< "${PYTHONPATH}"
   PRECHECK_PYTHONPATH_ARGS=()
@@ -152,6 +167,7 @@ if [ "${SKIP_CLUSTER_CHECK:-0}" != "1" ]; then
     precheck_path="${precheck_path%"${precheck_path##*[![:space:]]}"}"
     [ -n "${precheck_path}" ] && PRECHECK_PATH_ARGS+=(--path "${precheck_path}")
   done
+
   WORKER_LD_OUTPUT=$(python3 "${SCRIPT_DIR}/cluster_precheck.py" \
     --address "${RAY_INIT_ADDRESS}" \
     --nnodes "${TRAIN_NNODES}" --gpus-per-node "${TRAIN_NGPUS_PER_NODE}" \
@@ -323,6 +339,11 @@ MAIN_CMD=(
   algorithm.deep_failure_mask.alpha="${DEEP_FAILURE_MASK_ALPHA}" \
   actor_rollout_ref.rollout.custom.agent_framework.ship_turn_index="${DEEP_FAILURE_MASK_ENABLE}" \
   algorithm.group_advantage_by_harness="${ALGORITHM_GROUP_ADVANTAGE_BY_HARNESS:-false}" \
+  algorithm.gar.enable="${GAR_ENABLE}" \
+  algorithm.gar.grader.kwargs.url="'${GAR_GRADER_URL:-}'" \
+  algorithm.gar.grader.kwargs.api="${GAR_GRADER_API:-chat}" \
+  algorithm.gar.grader.kwargs.model="'${GAR_GRADER_MODEL:-}'" \
+  actor_rollout_ref.rollout.custom.agent_framework.agent_runners.mimoagent.runner_kwargs.include_task_in_reward_info="${GAR_ENABLE}" \
   "${RAY_ENV[@]}" \
   "${OPTIONAL_OVERRIDES[@]}" \
   "$@"

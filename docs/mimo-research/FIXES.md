@@ -81,20 +81,26 @@ git submodule update --init third_party/mimoagent-osr third_party/uni_agent
 - 채점기: `gar.grader.{path, name, kwargs}`로 불러오는 callable. `grade(groups: list[Group]) -> {group_id: GroupResult | None}`. `GroupResult(grades={session_key: Grade(tier, rank)}, hacks=[...])`. 통과 후보가 순위에서 빠졌거나 형식이 틀리면 그 그룹은 원래 advantage 유지 (`gar/groups_fallback`). 채점기가 예외를 내면 그 스텝의 모든 대상 그룹이 원래 advantage로 돌아감 (`gar/grader_error`)
 - 조건: `adv_estimator=grpo`, `norm_adv_by_std_in_grpo=false` (아니면 시작 시 오류)
 - 지표: `gar/groups_eligible`, `gar/groups_graded`, `gar/groups_fallback`, `gar/confirmed_hacks`, `gar/tier_share_T{1,2,3}`, `gar/lambda_mean`, `gar/lambda_capped_rate`
-- 채점기 구현은 넣지 않음: 논문의 채점기는 공개되지 않은 SFT 모델이고, 레포를 읽고 테스트를 돌리는 에이전트라 pod 인프라가 필요. 논문도 처음엔 Claude Opus 5를 썼음(그룹당 약 2,000초). 채점은 지금 `_compute_advantage` 안에서 동기로 돌며, 논문처럼 롤아웃과 겹쳐 돌리려면 샘플러 쪽 작업이 필요
+- LLM API 채점기 `verl/trainer/ppo/gar_api_grader.py` (`APIGrader`, Code 설정의 기본 채점기): URL만 넣으면 OpenAI Chat Completions, OpenAI Responses, Anthropic Messages 중 하나로 호출. `run_train.sh`의 `GAR_ENABLE`, `GAR_GRADER_URL`, `GAR_GRADER_MODEL`, `GAR_GRADER_API`
+  - 그룹마다 요청 1개 (병렬 `max_workers`, 429·5xx·타임아웃 재시도). 후보 순서는 그룹별 고정 시드로 섞고 C1, C2… 로 익명화. 실패 후보도 비교 맥락으로 넣음
+  - 모델은 통과 후보마다 5개 기준 점수(1~5)와 플래그(요청 안 한 재작성, 테스트 맞춤 우회, 심각한 프로세스 문제, 미해결 회귀, hack)를 JSON으로 답함. 등급과 순위는 코드가 논문 A.1 규칙과 가중합으로 계산 (같은 점수는 동률). hack은 근거 문자열이 있어야 인정
+  - 응답을 해석할 수 없으면 그 그룹만 fallback
+  - 키: 트레이너 프로세스의 `GAR_GRADER_API_KEY` 또는 `api_key_file`. 설정·resolve된 설정 파일·실행 기록에 남지 않게 설정으로는 받지 않음
+  - 채점 재료: 러너 결과의 `model_patch`, `test_output`, `result`, 그리고 `runner_kwargs.include_task_in_reward_info=true`일 때 과제 설명 (`GAR_ENABLE`이 같이 켬)
+- 논문과 다른 점: 논문 채점기는 공개되지 않은 SFT 에이전트로 레포에 들어가 코드를 읽고 표적 테스트를 돌림. 이 채점기는 패치와 테스트 출력만 봄. 채점은 `_compute_advantage` 안에서 동기로 돌며, 논문처럼 롤아웃과 겹쳐 돌리려면 샘플러 쪽 작업이 필요
 
 ## 하지 않은 것
 
-- GRS(오프라인 과제별 루브릭 + 채점 에이전트, Code 데이터에 루브릭 없음), GAR 채점기 구현(위), 엔트로피 기반 IS 경계 조절(규칙 미공개), overlong 규칙(상수 미공개)
+- GRS(오프라인 과제별 루브릭 + 채점 에이전트, Code 데이터에 루브릭 없음), 레포에 들어가는 에이전트형 GAR 채점기(위), 엔트로피 기반 IS 경계 조절(규칙 미공개), overlong 규칙(상수 미공개)
 - Code와 General을 한 run에서 섞기와 Sample Mixer: 지금 Code는 uni-agent 어댑터가 롤아웃 매니저를 통째로 바꾸고 General은 verl AgentLoop라 한 run에 둘을 태울 수 없음. 공용 롤아웃 경로가 먼저 필요하고 실제 pod로 검증해야 하는 별도 작업
 - webdev 무효 행 표시 (도메인 범위 밖)
 - arvo·design 에이전트 루프에는 도구 실행 예산을 넣지 않음 (도메인 범위 밖, General과 같은 방식으로 옮기면 됨)
 
 ## 검증
 
-- 새로 추가한 CPU 테스트: `test_advantage_fixes_on_cpu.py`(16), `test_exec_budget_on_cpu.py`(1), `test_bypass_prompt_mean_on_cpu.py`(3), `test_gar_on_cpu.py`(7: factor 표, 합·비율 보존, 상한과 재중심화, 보상 공간 등가식, 비이진 보상, 결과 검증, 설정 검증), `v1/test_compute_advantage_tq_on_cpu.py`(6)
+- 새로 추가한 CPU 테스트: `test_advantage_fixes_on_cpu.py`(16), `test_exec_budget_on_cpu.py`(1), `test_bypass_prompt_mean_on_cpu.py`(3), `test_gar_on_cpu.py`(7: factor 표, 합·비율 보존, 상한과 재중심화, 보상 공간 등가식, 비이진 보상, 결과 검증, 설정 검증), `v1/test_compute_advantage_tq_on_cpu.py`(6), `test_gar_api_grader_on_cpu.py`(8: 로컬 가짜 서버로 세 API 형식 왕복·키 헤더·재시도, 등급 규칙, 응답 검증, fallback, 근거 없는 hack 무시)
 - `test_compute_advantage_tq_on_cpu.py`는 실제 TransferQueue 파티션에 배치를 넣고 `_compute_advantage`를 끝까지 돌림: infra 행 마스킹, 여러 행 세션, 길이 페널티, 그룹 크기 보정, prompt-mean 가중치를 수식 값과 비교 / `exclude_invalid_rows=false`가 원본 동작 / 도구 오류 구간 페널티 / GAR hack 교정과 재분배 / 채점 결과 불량·채점기 예외 시 GRPO 그대로
-- 저장소 CPU 테스트 `tests/recipes tests/trainer/ppo tests/workers/config`를 원본(`mimo-oss`)과 비교: 원본 535 통과·3 실패, 우리 572 통과·3 실패. 실패 3건은 양쪽 같은 테스트 (replay buffer DAPO 2, 로컬 모델 경로 1). 우리 쪽에만 있는 실패 0건
+- 저장소 CPU 테스트 `tests/recipes tests/trainer/ppo tests/workers/config`를 원본(`mimo-oss`)과 비교: 원본 535 통과·3 실패, 우리 580 통과·3 실패. 실패 3건은 양쪽 같은 테스트 (replay buffer DAPO 2, 로컬 모델 경로 1). 우리 쪽에만 있는 실패 0건
 - 원본 기본값을 고정해 둔 테스트(trajectory_selection longest, bypass_mode false, DROP_INFRA_FROM_GROUP 관련 3곳)는 바뀐 기본값과 제거에 맞춰 수정
 - 실행: `PYTHONPATH=.:third_party/mimoagent-osr/src:third_party/uni_agent uv run --no-project --python 3.12 --with openai --with anthropic --with tenacity --with requests --with typer --with kubernetes --with xxhash --with TransferQueue==0.1.8 --with torch --with numpy --with pytest --with pytest-asyncio --with pydantic --with omegaconf --with tensordict --with packaging --with hydra-core --with codetiming --with ray --with transformers --with pillow --with pandas --with pyarrow --with datasets --with httpx --with cachetools --with uvicorn --with fastapi --with torchdata --with peft --with pyyaml --with jinja2 --with python-dotenv --with platformdirs --with rich python -m pytest -q tests/recipes tests/trainer/ppo tests/workers/config`
 - 두 레시피 설정을 Hydra로 합성해 손실 키 일치 검사 통과, 한쪽만 바꾸면 막힘, PPO 방식으로 되돌리기 가능 확인

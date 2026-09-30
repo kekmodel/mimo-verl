@@ -311,6 +311,7 @@ def _run_sync(
     exec_budget_seconds: float | None = None,
     exec_budget_agent_types: frozenset[str] | None = None,
     exec_budget_probe_timeout: int = 30,
+    include_task_in_reward_info: bool = False,
 ) -> dict[str, Any]:
     _prepare_swebench_import_path()
     from mimoagent.agents.factory import get_agent_class
@@ -367,6 +368,8 @@ def _run_sync(
             "result": result[-5000:] if isinstance(result, str) else str(result),
             "test_output": test_output[-5000:] if isinstance(test_output, str) else str(test_output),
         }
+        if include_task_in_reward_info:
+            reward_info["task"] = task
         agent_error_flags = getattr(agent, "tool_call_errors", None)
         if isinstance(agent_error_flags, list | tuple) and agent_error_flags:
             normalized_error_flags = [bool(value) for value in agent_error_flags]
@@ -463,6 +466,7 @@ async def mimoagent_runner(
     exec_budget_seconds = runner_kwargs.pop("exec_budget_seconds", None)
     exec_budget_agent_types = runner_kwargs.pop("exec_budget_agent_types", None)
     exec_budget_probe_timeout = int(runner_kwargs.pop("exec_budget_probe_timeout", 30))
+    include_task_in_reward_info = bool(runner_kwargs.pop("include_task_in_reward_info", False))
     reward_info = await asyncio.to_thread(
         _run_sync,
         raw_prompt=raw_prompt,
@@ -474,6 +478,7 @@ async def mimoagent_runner(
         exec_budget_seconds=float(exec_budget_seconds) if exec_budget_seconds else None,
         exec_budget_agent_types=frozenset(exec_budget_agent_types) if exec_budget_agent_types is not None else None,
         exec_budget_probe_timeout=exec_budget_probe_timeout,
+        include_task_in_reward_info=include_task_in_reward_info,
     )
     reward_info["selected_harness"] = selected_harness
     reward_info["tag_data_source_with_harness"] = os.getenv("MIXED_HARNESS_MODE", "prompt").strip().lower() in {

@@ -104,6 +104,9 @@ actor_rollout_ref:
               exec_budget_agent_types: null
               # Liveness probe after a budget hit; a dead pod is dropped as infra.
               exec_budget_probe_timeout: 30
+              # Ship the task text in reward_info so a GAR grader can read it (run_train.sh
+              # turns it on with GAR_ENABLE).
+              include_task_in_reward_info: false
             session_timeout_seconds: ${oc.env:TRAJECTORY_TIMEOUT,7200}
             agent_request_idle_timeout_seconds: ${oc.env:AGENT_REQUEST_IDLE_TIMEOUT,900}
             trajectory_timeout_by_dataset: {}
@@ -238,10 +241,23 @@ algorithm:
     lambda_max: 1.5
     pass_threshold: 1.0
     zero_confirmed_hacks: true
+    # LLM API grader (verl/trainer/ppo/gar_api_grader.py). run_train.sh fills url / api / model
+    # from GAR_GRADER_URL / GAR_GRADER_API / GAR_GRADER_MODEL. The key is read on the trainer
+    # node from api_key_file or the env var api_key_env, never from this config.
     grader:
-      path: null
-      name: null
-      kwargs: {}
+      path: pkg://verl.trainer.ppo.gar_api_grader
+      name: APIGrader
+      kwargs:
+        url: ""
+        api: chat  # chat (OpenAI Chat Completions) | responses (OpenAI Responses) | anthropic (Messages)
+        model: ""
+        api_key_env: GAR_GRADER_API_KEY
+        api_key_file: null
+        max_output_tokens: 4096
+        chat_max_tokens_field: max_completion_tokens
+        timeout: 600
+        max_retries: 3
+        max_workers: 16
   # Report Eq. (1): L = -sum_t sg[pi/mu] * M * A * log pi, with mu the rollout engine's
   # per-token probability (not recomputed, also across partial-rollout weight updates) and
   # M = 0 outside [0.2, 5.0] (IcePop-style mask; masked tokens stay in the normalizer).
