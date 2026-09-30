@@ -55,25 +55,7 @@ def test_invalid_rows_from_is_infra_and_sentinel():
     assert af.invalid_rows(None, scores, None).tolist() == [False] * 4
 
 
-def test_invalid_row_gets_zero_advantage_and_baseline_is_valid_mean():
-    # group of 4: valid scores 1, 0, 1; row 3 is infra with a placeholder 0 score
-    uids = np.array(["a"] * 4, dtype=object)
-    tlr, mask = _rewards([1.0, 0.0, 1.0, 0.0])
-    inv = torch.tensor([False, False, False, True])
-    keys = [f"a_{i}_0" for i in range(4)]
-    tlr = af.fill_invalid_scores(tlr, mask, uids, inv, keys)
-    adv = _grpo(tlr, mask, uids)
-    mean_valid = 2 / 3
-    assert adv[3, -1].item() == pytest.approx(0.0, abs=1e-6)
-    assert adv[0, -1].item() == pytest.approx(1 - mean_valid)
-    assert adv[1, -1].item() == pytest.approx(0 - mean_valid)
-
-
-def test_fill_uses_session_mean_when_sessions_have_several_rows():
-    # trajectory_selection=all: session A has 3 output rows (score 1), B has 1 row (score 0),
-    # C is invalid. GRPO's baseline is over one final row per session: (1 + 0 + fill) / 3.
-    # The fill must be the valid *session* mean 0.5 (a row mean would give 0.75 and bias every
-    # valid advantage).
+def _multi(tlr, mask, uids, keys, norm_std=False):
     import sys
     import types
 
@@ -86,22 +68,50 @@ def test_fill_uses_session_mean_when_sessions_have_several_rows():
     from verl.protocol import DataProto
     from verl.trainer.ppo.v1.utils import compute_advantage_for_multi_trajectories
 
+    data = DataProto.from_dict(tensors={"token_level_rewards": tlr, "response_mask": mask}, non_tensors={"uid": uids})
+    out = compute_advantage_for_multi_trajectories(
+        data, batch_keys=keys, adv_estimator="grpo", num_repeat=4, norm_adv_by_std_in_grpo=norm_std
+    )
+    return out.batch["advantages"][:, -1]
+
+
+@pytest.mark.parametrize("norm_std", [False, True])
+def test_isolated_invalid_rows_leave_the_baseline(norm_std):
+    # Group of 4: valid scores 1, 0, 1; session 3 is infra with a placeholder score. After
+    # isolation the valid advantages equal GRPO over the three valid sessions alone, for the
+    # mean-only and the std-normalized estimator.
+    keys = [f"a_{i}_0" for i in range(4)]
+    uids = np.array(["a"] * 4, dtype=object)
+    tlr, mask = _rewards([1.0, 0.0, 1.0, -999.0])
+    inv = torch.tensor([False, False, False, True])
+    adv = _multi(tlr, mask, af.isolate_invalid_rows(uids, inv, keys), keys, norm_std)
+    ref = _multi(tlr[:3], mask[:3], uids[:3], keys[:3], norm_std)
+    assert torch.allclose(adv[:3], ref)
+    adv_masked, _, _ = af.mask_invalid_rows(adv.unsqueeze(-1), mask[:, -1:], inv)
+    assert adv_masked[3].item() == 0.0
+
+
+def test_isolation_with_multi_row_sessions():
+    # trajectory_selection=all: session A has 3 output rows (score 1), B has 1 row (score 0),
+    # C is invalid. GRPO grades one final row per session: the baseline is (1 + 0) / 2.
     keys = ["u_A_0", "u_A_1", "u_A_2", "u_B_0", "u_C_0"]
     uids = np.array(["u"] * 5, dtype=object)
     tlr, mask = _rewards([1.0, 1.0, 1.0, 0.0, 0.0])
     inv = torch.tensor([False, False, False, False, True])
-    tlr = af.fill_invalid_scores(tlr, mask, uids, inv, keys)
-    assert tlr[4].sum().item() == pytest.approx(0.5)
-    data = DataProto.from_dict(
-        tensors={"token_level_rewards": tlr, "response_mask": mask},
-        non_tensors={"uid": uids},
-    )
-    out = compute_advantage_for_multi_trajectories(
-        data, batch_keys=keys, adv_estimator="grpo", num_repeat=3, norm_adv_by_std_in_grpo=False
-    )
-    adv = out.batch["advantages"][:, -1]
-    assert adv[4].item() == pytest.approx(0.0, abs=1e-6)
-    assert adv[0].item() == pytest.approx(0.5) and adv[3].item() == pytest.approx(-0.5)
+    adv = _multi(tlr, mask, af.isolate_invalid_rows(uids, inv, keys), keys)
+    assert adv[0].item() == pytest.approx(0.5) and adv[2].item() == pytest.approx(0.5)
+    assert adv[3].item() == pytest.approx(-0.5)
+
+
+def test_invalid_final_row_invalidates_the_session():
+    # The final row carries the sentinel: GRPO grades the session on it, so the session is not
+    # a policy sample and its earlier (valid-looking) row must leave the loss too.
+    keys = ["a_0_0", "a_0_1", "a_1_0"]
+    inv = af.expand_invalid_to_sessions(torch.tensor([False, True, False]), keys)
+    assert inv.tolist() == [True, True, False]
+    # An invalid non-final row does not invalidate a session graded on a valid final row.
+    inv = af.expand_invalid_to_sessions(torch.tensor([True, False, False]), keys)
+    assert inv.tolist() == [True, False, False]
 
 
 def test_masked_rows_leave_prompt_mean_weights_untouched():
@@ -137,15 +147,26 @@ def test_all_invalid_batch_keeps_mask_but_zero_advantage():
 def test_group_size_correction_restores_common_factor():
     n_ref = 16
     uids = np.array(["full"] * 16 + ["short"] * 16, dtype=object)
-    skeys = [f"{u}_{i}" for i, u in enumerate(uids)]
+    keys = [f"{u}_{i}_0" for i, u in enumerate(uids)]
     inv = torch.zeros(32, dtype=torch.bool)
-    inv[16 + 13 :] = True  # 3 invalid rows in the second group -> n_valid = 13
+    inv[16 + 13 :] = True  # 3 invalid sessions in the second group -> n_valid = 13
     adv = torch.ones(32, 2)
-    out, m = af.group_size_correction(adv, uids, skeys, inv, n_ref=n_ref)
+    out, m = af.group_size_correction(adv, uids, keys, inv, n_ref=n_ref)
     assert torch.allclose(out[:16], adv[:16])  # full group untouched
     expected = (1 - 1 / 16) / (1 - 1 / 13)
     assert out[16, 0].item() == pytest.approx(expected)
     assert m["training/group_size/corrected_groups"] == 1.0
+
+
+def test_group_size_correction_zeroes_singletons_and_skips_n_ref_below_two():
+    uids = np.array(["a", "b", "b"], dtype=object)
+    keys = ["a_0_0", "b_0_0", "b_1_0"]
+    out, m = af.group_size_correction(torch.ones(3, 1), uids, keys, torch.zeros(3, dtype=torch.bool), n_ref=4)
+    assert out[0, 0].item() == 0.0  # one valid session: no baseline
+    assert out[1, 0].item() == pytest.approx((1 - 1 / 4) / (1 - 1 / 2))
+    assert m["training/group_size/singleton_groups"] == 1.0
+    same, m = af.group_size_correction(torch.ones(3, 1), uids, keys, torch.zeros(3, dtype=torch.bool), n_ref=1)
+    assert torch.equal(same, torch.ones(3, 1)) and m["training/group_size/skipped_n_ref"] == 1.0
 
 
 def test_group_size_correction_makes_expected_gradient_factor_common():
@@ -162,11 +183,11 @@ def test_group_size_correction_makes_expected_gradient_factor_common():
         assert corrected == pytest.approx((1 - 1 / n_ref) * p * (1 - p), rel=0.03)
 
 
-def test_group_size_counts_sessions_not_rows():
+def test_group_size_counts_sessions_by_their_final_row():
     # one session with two output rows (sub-agent) counts once
     uids = np.array(["a", "a", "a"], dtype=object)
-    skeys = ["a_0", "a_0", "a_1"]
-    out, _ = af.group_size_correction(torch.ones(3, 1), uids, skeys, torch.zeros(3, dtype=torch.bool), n_ref=4)
+    keys = ["a_0_0", "a_0_1", "a_1_0"]
+    out, _ = af.group_size_correction(torch.ones(3, 1), uids, keys, torch.zeros(3, dtype=torch.bool), n_ref=4)
     assert out[0, 0].item() == pytest.approx((1 - 1 / 4) / (1 - 1 / 2))
 
 
@@ -220,10 +241,11 @@ def test_length_penalty_skips_invalid_sessions_and_low_pass_groups():
 
 
 def test_session_length_signals_tensor_fallback():
-    _, mask = _rewards([0, 0], width=8, lengths=[3, 5])
-    sig = af.session_length_signals(None, mask, [10, 10], [8, 8], [2, 4], ["u_0", "u_1"])
+    # turns = runs of action tokens (model calls), separated by tool output (mask 0)
+    mask = torch.tensor([[1, 1, 0, 0, 1, 0, 0, 0], [1, 1, 1, 0, 1, 1, 0, 1]])
+    sig = af.session_length_signals(None, mask, [10, 10], [8, 8], ["u_0", "u_1"])
     assert sig["u_0"] == {"turn_count": 2.0, "prefill_length": 15.0, "decode_length": 3.0}
-    assert sig["u_1"]["prefill_length"] == 13.0
+    assert sig["u_1"] == {"turn_count": 3.0, "prefill_length": 12.0, "decode_length": 6.0}
 
 
 def test_legacy_length_penalty_keys():
@@ -286,3 +308,46 @@ def test_exec_budget_hit_reads_both_recipe_layouts():
     assert af.exec_budget_hit({"reward_extra_info": {"exec_budget_hit": True}}) == 1.0  # code: reward_info
     assert af.exec_budget_hit({"reward_extra_info": {"exec_budget_hit": False}}) == 0.0
     assert af.exec_budget_hit({}) == 0.0
+
+
+def test_trajectory_metadata_pads_an_unprocessed_final_turn():
+    # The last turn got a span but ended the run before the agent flagged it: earlier flags must
+    # survive (a length mismatch used to make the whole row misaligned).
+    from recipes.general.trajectory_metadata import trajectory_metadata
+
+    meta = trajectory_metadata([1], [1, 1, 0, 1, 1, 0, 1], [(0, 2), (3, 5), (6, 7)], [True, False])
+    assert meta["tool_call_error_flags"] == [True, False, False]
+    hits, m = af.tool_error_hits_from_spans([meta], torch.tensor([[1, 1, 0, 1, 1, 0, 1]]))
+    assert hits[0].tolist() == [True, True, False, False, False, False, False]
+    assert m["penalty/tool_call_error_span_misaligned_rows"] == 0.0
+
+
+def test_missing_span_metadata_is_counted():
+    _, m = af.tool_error_hits_from_spans([{}, {"llm_turn_spans": [], "tool_call_error_flags": []}], torch.ones(2, 3))
+    assert m["penalty/tool_call_error_span_missing_rows"] == 1.0
+
+
+def test_exec_budget_hit_rate_is_over_valid_sessions():
+    keys = ["a_0_0", "a_0_1", "a_1_0", "a_2_0"]
+    extra = [{}, {"exec_budget_hit": 1.0}, {"exec_budget_hit": 0.0}, {"exec_budget_hit": 1.0}]
+    inv = torch.tensor([False, False, False, True])
+    assert af.exec_budget_hit_rate(extra, keys, inv) == pytest.approx(0.5)  # sessions 0 (hit) and 1
+
+
+def test_algorithm_config_guards():
+    from omegaconf import OmegaConf
+
+    def cfg(**algo):
+        return OmegaConf.create({"algorithm": algo})
+
+    af.check_algorithm_config(cfg(invalid_reward_value=-999))
+    with pytest.raises(ValueError, match="exclude_invalid_rows"):
+        af.check_algorithm_config(cfg(invalid_reward_value=-999, exclude_invalid_rows=False))
+    with pytest.raises(ValueError, match="use_kl_in_reward"):
+        af.check_algorithm_config(cfg(use_kl_in_reward=True, length_penalty={"enable": True}))
+    with pytest.raises(ValueError, match="pick one"):
+        af.check_algorithm_config(cfg(arvo_penalties={"enable": True}, length_penalty={"enabled": True}))
+    with pytest.raises(ValueError, match="pick one"):
+        af.check_algorithm_config(
+            cfg(arvo_penalties={"enable": True}, tool_call_error_penalty={"enable": True, "strategy": "adv_signed"})
+        )

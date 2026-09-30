@@ -379,6 +379,7 @@ class PPOTrainer(ABC):
     def __init__(self, config: DictConfig):
         self.config = config
         advantage_fixes.check_policy_loss_config(config)
+        advantage_fixes.check_algorithm_config(config)
         self._gar_step = None
         gar_cfg = gar.GARConfig.from_raw(OmegaConf.select(config, "algorithm.gar", default=None))
         if gar_cfg is not None:
@@ -1953,13 +1954,27 @@ class PPOTrainer(ABC):
         data = DataProto(batch=data.to_padded_tensor())
         data.batch["token_level_scores"] = data.batch["rm_scores"]
         data.non_tensor_batch["uid"] = np.array(data.batch.pop("uid").tolist(), dtype=object)
+        # The response mask as the rollout produced it, before any penalty edits it: the source of
+        # the length signals' action-token counts.
+        action_mask = data.batch["response_mask"].clone()
 
-        # Row metadata (is_infra, length_signals, turn spans). Absent for recipes that ship none.
+        # Row metadata (is_infra, length_signals, turn spans, reward_extra_info). verl AgentLoops
+        # store it as one ``extra_fields`` field; uni-agent (Code) flattens it into top-level
+        # fields, where the runner's reward info is ``reward_extra_info``.
+        extra_fields_list = None
         try:
             _ef = tq.kv_batch_get(keys=batch.keys, partition_id=batch.partition_id, select_fields=["extra_fields"])
             extra_fields_list = list(_ef["extra_fields"])
-        except Exception as e:  # noqa: BLE001 - metadata is optional; missing it only disables the users below
-            logger.warning("[advantage] extra_fields unavailable: %s", e)
+        except Exception:  # noqa: BLE001 - absent in the uni-agent layout
+            try:
+                _rei = tq.kv_batch_get(
+                    keys=batch.keys, partition_id=batch.partition_id, select_fields=["reward_extra_info"]
+                )
+                extra_fields_list = [{"reward_extra_info": getattr(x, "data", x)} for x in list(_rei["reward_extra_info"])]
+            except Exception as e:  # noqa: BLE001 - metadata is optional; missing it only disables its users
+                logger.warning("[advantage] no extra_fields / reward_extra_info: %s", e)
+        if extra_fields_list is not None and len(extra_fields_list) != len(batch.keys):
+            logger.warning("[advantage] row metadata has %d rows for %d keys; ignored", len(extra_fields_list), len(batch.keys))
             extra_fields_list = None
         session_keys = advantage_fixes.session_keys_from_batch_keys(batch.keys)
 
@@ -2024,18 +2039,23 @@ class PPOTrainer(ABC):
         else:
             data.batch["token_level_rewards"] = data.batch["token_level_scores"]
 
-        # Rows that are not samples of the policy (infra failures, sentinel scores). With
-        # algorithm.exclude_invalid_rows they are excluded from the GRPO baseline, the loss and
-        # the prompt-mean normalization below. Off reproduces upstream: only sentinel rows leave
-        # the baseline (inside compute_grpo_outcome_advantage) and keep their tokens in the
-        # normalization; rows flagged only by is_infra train as ordinary rows.
+        # Rows that are not samples of the policy: infra failures (is_infra) or the
+        # invalid_reward_value sentinel, as sessions (a session graded on an invalid final row is
+        # invalid as a whole). With algorithm.exclude_invalid_rows they leave the GRPO baseline,
+        # the loss and the prompt-mean normalization below. Off, every row trains as it is, as
+        # upstream did (upstream's sentinel branch in compute_grpo_outcome_advantage is never
+        # reached: compute_advantage does not pass it the config), so off with a sentinel is
+        # refused at start-up.
         invalid_reward_value = self.config.algorithm.get("invalid_reward_value", None)
         exclude_invalid = bool(self.config.algorithm.get("exclude_invalid_rows", True))
-        invalid = advantage_fixes.invalid_rows(
-            extra_fields_list if exclude_invalid else None,
-            data.batch["token_level_rewards"].sum(dim=-1),
-            invalid_reward_value,
-        )
+        invalid = torch.zeros(len(batch.keys), dtype=torch.bool, device=data.batch["token_level_scores"].device)
+        if exclude_invalid:
+            invalid = advantage_fixes.expand_invalid_to_sessions(
+                advantage_fixes.invalid_rows(
+                    extra_fields_list, data.batch["token_level_scores"].sum(dim=-1), invalid_reward_value
+                ),
+                batch.keys,
+            )
         metrics["training/invalid_rows"] = float(invalid.sum().item())
 
         group_suffixes = None
@@ -2047,7 +2067,7 @@ class PPOTrainer(ABC):
                 )
             group_suffixes = np.asarray(harness_values, dtype=object)
         # GRPO group ids exactly as compute_advantage_for_multi_trajectories forms them; every
-        # group-relative step below (GAR, length penalty, fill, correction) uses the same ids.
+        # group-relative step below (GAR, length penalty, correction) uses the same ids.
         group_ids = data.non_tensor_batch["uid"]
         if group_suffixes is not None:
             group_ids = np.asarray([f"{u}::{s}" for u, s in zip(group_ids, group_suffixes, strict=True)], dtype=object)
@@ -2059,27 +2079,20 @@ class PPOTrainer(ABC):
                 gar_step.grade(data.batch["token_level_rewards"], group_ids, batch.keys, invalid, extra_fields_list)
             )
         if extra_fields_list is not None:
-            _hits = [advantage_fixes.exec_budget_hit(ef) for ef in extra_fields_list]
-            metrics["rollout/exec_budget_hit_rate"] = float(np.mean(_hits)) if _hits else 0.0
+            hit_rate = advantage_fixes.exec_budget_hit_rate(extra_fields_list, batch.keys, invalid)
+            if hit_rate is not None:
+                metrics["rollout/exec_budget_hit_rate"] = hit_rate
 
         _lp_raw = self.config.algorithm.get("length_penalty", None)
         lp_cfg = advantage_fixes.length_penalty_config(
             OmegaConf.to_container(_lp_raw, resolve=True) if _lp_raw is not None and not isinstance(_lp_raw, dict) else _lp_raw
         )
         if lp_cfg is not None:
-            if self.reference_penalties is not None:
-                raise ValueError("algorithm.length_penalty and algorithm.arvo_penalties both shape length; pick one")
-            try:
-                _nt = tq.kv_batch_get(keys=batch.keys, partition_id=batch.partition_id, select_fields=["num_turns"])
-                num_turns = np.asarray(_nt["num_turns"]).reshape(-1).tolist()
-            except Exception:  # noqa: BLE001 - only the tensor fallback needs it
-                num_turns = None
             signals = advantage_fixes.session_length_signals(
                 extra_fields_list,
-                data.batch["response_mask"],
+                action_mask,
                 [int(tag["prompt_len"]) for tag in batch.tags],
                 [int(tag["response_len"]) for tag in batch.tags],
-                num_turns,
                 session_keys,
             )
             data.batch["token_level_rewards"], lp_metrics = advantage_fixes.apply_group_length_penalty(
@@ -2121,17 +2134,12 @@ class PPOTrainer(ABC):
             data, is_metrics = compute_rollout_correction_and_add_to_batch(data, rollout_corr_config)
             metrics.update(is_metrics)
 
-        # Invalid rows take their group's valid mean so the GRPO baseline is the valid mean.
-        # (Replaces the old DROP_INFRA_FROM_GROUP uid reassignment, which turned every invalid
-        # row into a pseudo-prompt counted by the prompt-mean normalization.)
-        if exclude_invalid:
-            data.batch["token_level_rewards"] = advantage_fixes.fill_invalid_scores(
-                data.batch["token_level_rewards"],
-                data.batch["response_mask"],
-                group_ids,
-                invalid,
-                batch.keys,
-            )
+        # Invalid rows get a GRPO group of their own session, so every group's baseline (mean,
+        # and std when normalizing) is over its valid sessions; they are masked right after, so
+        # they carry no gradient and, with no loss tokens, count as no prompt in prompt-mean.
+        original_uids = data.non_tensor_batch["uid"]
+        if exclude_invalid and bool(invalid.any()):
+            data.non_tensor_batch["uid"] = advantage_fixes.isolate_invalid_rows(original_uids, invalid, batch.keys)
 
         # 3. compute advantages
         data = compute_advantage_for_multi_trajectories(
@@ -2145,6 +2153,7 @@ class PPOTrainer(ABC):
             config=self.config.algorithm,
             group_suffixes=group_suffixes,
         )
+        data.non_tensor_batch["uid"] = original_uids
 
         if gar_step is not None:
             data.batch["advantages"], gar_metrics = gar_step.redistribute(
@@ -2154,14 +2163,19 @@ class PPOTrainer(ABC):
 
         is_grpo = self.config.algorithm.adv_estimator == core_algos.AdvantageEstimator.GRPO
         if is_grpo and bool(self.config.algorithm.get("group_size_correction", True)):
-            data.batch["advantages"], gs_metrics = advantage_fixes.group_size_correction(
-                data.batch["advantages"],
-                group_ids,
-                session_keys,
-                invalid,
-                n_ref=int(self.config.actor_rollout_ref.rollout.n),
-            )
-            metrics.update(gs_metrics)
+            if self.config.algorithm.get("norm_adv_by_std_in_grpo", True):
+                # The (1 - 1/n) factor is derived for the mean-only baseline; with std
+                # normalization it does not hold, so the correction is not applied.
+                metrics["training/group_size/skipped_std_norm"] = 1.0
+            else:
+                data.batch["advantages"], gs_metrics = advantage_fixes.group_size_correction(
+                    data.batch["advantages"],
+                    group_ids,
+                    batch.keys,
+                    invalid,
+                    n_ref=int(self.config.actor_rollout_ref.rollout.n),
+                )
+                metrics.update(gs_metrics)
         if exclude_invalid:
             data.batch["advantages"], data.batch["response_mask"], _masked = advantage_fixes.mask_invalid_rows(
                 data.batch["advantages"], data.batch["response_mask"], invalid

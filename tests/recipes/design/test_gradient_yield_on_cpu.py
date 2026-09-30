@@ -170,9 +170,9 @@ def test_every_touchpoint_in_the_trainer_is_behind_an_environment_gate():
         between = preceding[gate:]
         assert between.count("\n") <= 12, f"{call!r} is no longer directly under its WEBDEV_GRADE_MODE gate"
 
-    # Invalid (infra/sentinel) rows are always excluded through the valid-mean fill and the
+    # Invalid (infra/sentinel) sessions are excluded by isolating them from their GRPO group and the
     # loss mask; the old DROP_INFRA_FROM_GROUP uid reassignment is gone.
-    assert "advantage_fixes.fill_invalid_scores(" in src
+    assert "advantage_fixes.isolate_invalid_rows(" in src
     assert 'os.environ.get("DROP_INFRA_FROM_GROUP"' not in src
 
     # And no other recipe-specific import may be unconditional at module scope.

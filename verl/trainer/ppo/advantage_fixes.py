@@ -22,16 +22,16 @@ their action-token count. A row invalidated by infrastructure (pod died, setup f
 verifier transport error) is not a sample of the policy and must appear in none of Q, V_q,
 T_q or the GRPO baseline. The helpers here implement that exactly:
 
-* :func:`invalid_rows` — one boolean per row from ``is_infra`` metadata or the
-  ``invalid_reward_value`` sentinel.
-* :func:`fill_invalid_scores` — before GRPO, give each invalid row the mean of its group's
-  valid scores so the group mean equals the valid mean (and the invalid row's own
-  advantage is exactly 0).
+* :func:`invalid_rows` / :func:`expand_invalid_to_sessions` — one boolean per row from
+  ``is_infra`` metadata or the ``invalid_reward_value`` sentinel; a session graded on an
+  invalid final row is invalid as a whole.
+* :func:`isolate_invalid_rows` — before GRPO, move invalid rows into a group of their own, so
+  each group's baseline (mean, and std when normalizing) is over its valid sessions.
 * :func:`group_size_correction` — GRPO's baseline includes the row itself, so
   ``E[(r_i - mean) * grad log pi_i] = (1 - 1/n) * grad J_q``. With a fixed group size this is a
   common constant; once rows drop out, ``n`` differs by group and the factor becomes a
   per-prompt bias. Rescaling each group by ``(1 - 1/n_ref) / (1 - 1/n_valid)`` restores a
-  common factor without changing the effective learning rate of full groups.
+  common factor (= RLOO x (1 - 1/n_ref)) without changing full groups.
 * :func:`mask_invalid_rows` — zero the advantage and the loss mask of invalid rows, so
   :func:`verl.trainer.ppo.core_algos.compute_prompt_loss_weights` counts neither their
   tokens nor their prompt.
@@ -47,7 +47,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import torch
@@ -92,6 +92,16 @@ def exec_budget_hit(extra_field: Any) -> float:
     if value is None:
         value = _meta(info.get("reward_extra_info")).get("exec_budget_hit", 0.0)
     return 1.0 if float(value or 0.0) > 0.5 else 0.0
+
+
+def exec_budget_hit_rate(
+    extra_fields: Sequence[Any], batch_keys: Sequence[str], invalid: torch.Tensor
+) -> Optional[float]:
+    """Share of valid sessions frozen at their tool-execution budget (read on the final row)."""
+    rows = [row for row in final_rows_by_session(batch_keys).values() if not bool(invalid[row])]
+    if not rows:
+        return None
+    return float(np.mean([exec_budget_hit(extra_fields[row]) for row in rows]))
 
 
 def invalid_rows(
@@ -143,32 +153,32 @@ def final_rows_by_session(batch_keys: Sequence[str]) -> dict[str, int]:
     return {skey: row for skey, (_, row) in final.items()}
 
 
-def fill_invalid_scores(
-    token_level_rewards: torch.Tensor,
-    response_mask: torch.Tensor,
-    group_ids: np.ndarray,
-    invalid: torch.Tensor,
-    batch_keys: Sequence[str],
-) -> torch.Tensor:
-    """Replace each invalid row's outcome with its group's valid-session mean.
+def expand_invalid_to_sessions(invalid: torch.Tensor, batch_keys: Sequence[str]) -> torch.Tensor:
+    """Invalidity is a session property: GRPO grades a session on its final row, so a session
+    whose final row is invalid is not a sample of the policy and all its rows are invalid. A row
+    that is invalid itself stays invalid (its session keeps its other rows)."""
+    final = final_rows_by_session(batch_keys)
+    bad = {skey for skey, row in final.items() if bool(invalid[row])}
+    out = invalid.clone()
+    for row, skey in enumerate(session_keys_from_batch_keys(batch_keys)):
+        if skey in bad:
+            out[row] = True
+    return out
 
-    GRPO's baseline is the mean over one final row per session of the group. With every
-    invalid session filled with the mean of the valid sessions, that baseline equals the
-    valid mean, so valid sessions get exactly ``r - mean_valid`` and invalid ones exactly 0 --
-    independent of how many output rows each session has. A group with no valid session is
-    filled with 0 (every session equal, every advantage 0).
+
+def isolate_invalid_rows(uids: np.ndarray, invalid: torch.Tensor, batch_keys: Sequence[str]) -> np.ndarray:
+    """uids with every invalid row moved to a GRPO group of its own session.
+
+    The group's baseline (mean and, with std normalization, std) is then computed over the
+    valid sessions only, for every estimator variant; the isolated rows are masked afterwards
+    (``mask_invalid_rows``), so they carry no gradient and, having no loss tokens, count as no
+    prompt in the prompt-mean normalization.
     """
-    scores = token_level_rewards.sum(dim=-1)
-    finals = final_rows_by_session(batch_keys)
-    valid_by_group: dict[Any, list[float]] = defaultdict(list)
-    for row in finals.values():
-        if not bool(invalid[row]):
-            valid_by_group[group_ids[row]].append(float(scores[row]))
-    rows = [i for i in range(len(group_ids)) if bool(invalid[i])]
-    if not rows:
-        return token_level_rewards
-    values = [float(np.mean(valid_by_group[group_ids[i]])) if valid_by_group[group_ids[i]] else 0.0 for i in rows]
-    return set_row_scores(token_level_rewards, response_mask, rows, values)
+    out = np.array(uids, dtype=object, copy=True)
+    for row, skey in enumerate(session_keys_from_batch_keys(batch_keys)):
+        if bool(invalid[row]):
+            out[row] = f"__invalid__{skey}"
+    return out
 
 
 def session_keys_from_batch_keys(batch_keys: Sequence[str]) -> list[str]:
@@ -184,34 +194,39 @@ def session_keys_from_batch_keys(batch_keys: Sequence[str]) -> list[str]:
 
 def group_size_correction(
     advantages: torch.Tensor,
-    uids: np.ndarray,
-    session_keys: Sequence[str],
+    group_ids: np.ndarray,
+    batch_keys: Sequence[str],
     invalid: torch.Tensor,
     n_ref: int,
 ) -> tuple[torch.Tensor, dict[str, float]]:
-    """Rescale each group's advantages by ``(1 - 1/n_ref) / (1 - 1/n_valid)``.
+    """Rescale each GRPO group by ``(1 - 1/n_ref) / (1 - 1/n_valid)``.
 
-    ``n_valid`` counts distinct valid sessions of the uid (a session may own several
-    output rows). Groups with ``n_valid <= 1`` carry zero advantage and are left alone.
+    GRPO's mean baseline includes the sample itself, so its expected gradient is
+    ``(1 - 1/n) grad J`` for a group of ``n``; this makes the factor ``(1 - 1/n_ref)`` for every
+    group, i.e. each group's advantage becomes ``(1 - 1/n_ref)`` times the leave-one-out (RLOO)
+    advantage. Identity when ``n_valid == n_ref``; with harness grouping, harness subgroups of a
+    full prompt group are smaller than ``n_ref`` and are rescaled too. ``n_valid`` counts valid
+    sessions by their final row (the row GRPO grades). A group with one valid session has no
+    baseline (GRPO gives it its raw reward) and is zeroed, as dynamic sampling does for a group
+    without reward variance. ``n_ref < 2`` leaves the advantages unchanged.
     """
     if n_ref < 2:
-        raise ValueError(f"n_ref must be >= 2, got {n_ref}")
-    sessions_by_uid: dict[Any, set[str]] = defaultdict(set)
-    for i, (uid, skey) in enumerate(zip(uids.tolist(), session_keys, strict=True)):
-        if not bool(invalid[i]):
-            sessions_by_uid[uid].add(skey)
+        return advantages, {"training/group_size/skipped_n_ref": 1.0}
+    n_valid: dict[Any, int] = defaultdict(int)
+    for row in final_rows_by_session(batch_keys).values():
+        if not bool(invalid[row]):
+            n_valid[group_ids[row]] += 1
     base = 1.0 - 1.0 / n_ref
     factors = torch.ones(advantages.shape[0], dtype=advantages.dtype, device=advantages.device)
-    corrected_groups = 0
-    for i, uid in enumerate(uids.tolist()):
-        n_valid = len(sessions_by_uid.get(uid, ()))
-        if n_valid >= 2 and n_valid != n_ref:
-            factors[i] = base / (1.0 - 1.0 / n_valid)
-    for uid, sessions in sessions_by_uid.items():
-        if len(sessions) >= 2 and len(sessions) != n_ref:
-            corrected_groups += 1
+    for i, gid in enumerate(group_ids.tolist()):
+        n = n_valid.get(gid, 0)
+        if n == 1:
+            factors[i] = 0.0
+        elif n >= 2 and n != n_ref:
+            factors[i] = base / (1.0 - 1.0 / n)
     metrics = {
-        "training/group_size/corrected_groups": float(corrected_groups),
+        "training/group_size/corrected_groups": float(sum(1 for n in n_valid.values() if n >= 2 and n != n_ref)),
+        "training/group_size/singleton_groups": float(sum(1 for n in n_valid.values() if n == 1)),
         "training/group_size/factor_max": float(factors.max().item()) if factors.numel() else 1.0,
     }
     return advantages * factors.unsqueeze(-1), metrics
@@ -238,31 +253,40 @@ def mask_invalid_rows(
     return advantages, response_mask, True
 
 
+def action_segments(response_mask: torch.Tensor) -> torch.Tensor:
+    """Per row, the number of contiguous runs of action tokens: one per model turn, since each
+    turn's generated tokens are followed by tool output (mask 0)."""
+    m = response_mask.to(torch.bool)
+    starts = m[:, :1].to(torch.long).sum(dim=-1) + (m[:, 1:] & ~m[:, :-1]).to(torch.long).sum(dim=-1)
+    return starts
+
+
 def session_length_signals(
     extra_fields: Sequence[Any] | None,
-    response_mask: torch.Tensor,
+    action_mask: torch.Tensor,
     prompt_lengths: Sequence[int],
     response_lengths: Sequence[int],
-    num_turns: Sequence[int] | None,
     session_keys: Sequence[str],
 ) -> dict[str, dict[str, float]]:
     """Per-session ``{turn_count, prefill_length, decode_length}``.
 
     Prefers the agent loop's ``length_signals`` (model turns, prompt + tool tokens, generated
-    tokens). Otherwise derives them from tensors: decode = action tokens, prefill = prompt +
-    non-action response tokens, turns = ``num_turns``. Signals are summed over a session's
-    output rows (sub-agents / compaction segments).
+    tokens). Otherwise derives them from ``action_mask``, the response mask as the rollout
+    produced it (before any penalty edits it): decode = action tokens, prefill = prompt +
+    non-action response tokens, turns = runs of action tokens (model calls, the same quantity
+    the agent loops report). Signals are summed over a session's output rows (sub-agents /
+    compaction segments).
     """
-    decode = response_mask.to(torch.bool).sum(dim=-1).tolist()
+    decode = action_mask.to(torch.bool).sum(dim=-1).tolist()
+    turns = action_segments(action_mask).tolist()
     out: dict[str, dict[str, float]] = {}
     for i, skey in enumerate(session_keys):
         ls = _meta(extra_fields[i]).get("length_signals") if extra_fields is not None else None
         if isinstance(ls, dict) and all(k in ls for k in ("turn_count", "prefill_length", "decode_length")):
             row = {k: float(ls[k]) for k in ("turn_count", "prefill_length", "decode_length")}
         else:
-            turns = float(num_turns[i]) if num_turns is not None else 0.0
             row = {
-                "turn_count": turns,
+                "turn_count": float(turns[i]),
                 "prefill_length": float(prompt_lengths[i]) + float(response_lengths[i]) - float(decode[i]),
                 "decode_length": float(decode[i]),
             }
@@ -332,11 +356,17 @@ def tool_error_hits_from_spans(
     """
     mask = torch.zeros_like(response_mask, dtype=torch.bool)
     misaligned = 0
+    missing = 0
     width = response_mask.shape[1]
     for row, ef in enumerate(extra_fields):
         info = _meta(ef)
         spans, flags = info.get("llm_turn_spans"), info.get("tool_call_error_flags")
-        if not spans or flags is None:
+        if spans is None or flags is None:
+            # No metadata at all: the recipe does not record it, so the penalty is off for this
+            # row. Counted so a wrong mask_source shows up instead of silently doing nothing.
+            missing += int(bool(response_mask[row].any()))
+            continue
+        if not spans:
             continue
         if len(spans) != len(flags):
             misaligned += 1
@@ -357,7 +387,10 @@ def tool_error_hits_from_spans(
                 if s < e:
                     mask[row, s:e] = True
     mask &= response_mask.to(torch.bool)
-    return mask, {"penalty/tool_call_error_span_misaligned_rows": float(misaligned)}
+    return mask, {
+        "penalty/tool_call_error_span_misaligned_rows": float(misaligned),
+        "penalty/tool_call_error_span_missing_rows": float(missing),
+    }
 
 
 def check_policy_loss_config(config) -> None:
@@ -380,3 +413,36 @@ def check_policy_loss_config(config) -> None:
         )
     if bypass and not bool(OmegaConf.select(config, "actor_rollout_ref.rollout.calculate_log_probs", default=False)):
         raise ValueError("bypass_mode needs actor_rollout_ref.rollout.calculate_log_probs=true (rollout log-probs)")
+
+
+def check_algorithm_config(config) -> None:
+    """Fail fast on combinations of the added algorithm features that train on wrong numbers."""
+    from omegaconf import OmegaConf
+
+    def sel(key, default=None):
+        return OmegaConf.select(config, key, default=default)
+
+    sentinel = sel("algorithm.invalid_reward_value") is not None
+    length = bool((sel("algorithm.length_penalty") or {}).get("enable", (sel("algorithm.length_penalty") or {}).get("enabled", False)))
+    gar_on = bool((sel("algorithm.gar") or {}).get("enable", False))
+    arvo = bool(sel("algorithm.arvo_penalties.enable", False))
+    if sentinel and not bool(sel("algorithm.exclude_invalid_rows", True)):
+        raise ValueError(
+            "algorithm.invalid_reward_value needs algorithm.exclude_invalid_rows=true: upstream never "
+            "removes sentinel rows from the GRPO baseline (compute_advantage does not pass the config "
+            "to compute_grpo_outcome_advantage), so the sentinel score would train as a reward"
+        )
+    if bool(sel("algorithm.use_kl_in_reward", False)) and (sentinel or length or gar_on):
+        raise ValueError(
+            "algorithm.use_kl_in_reward folds per-token KL into the rewards that the sentinel check, "
+            "the length penalty and GAR read as outcome scores; disable it or those features"
+        )
+    if arvo and length:
+        raise ValueError("algorithm.length_penalty and algorithm.arvo_penalties both shape length; pick one")
+    if arvo and bool(sel("algorithm.tool_call_error_penalty.enable", False)) and str(
+        sel("algorithm.tool_call_error_penalty.strategy", "monitor")
+    ) != "monitor":
+        raise ValueError(
+            "algorithm.arvo_penalties and algorithm.tool_call_error_penalty both rebalance tool-error "
+            "tokens (flagged negatives would get kappa twice); pick one"
+        )

@@ -26,6 +26,14 @@ def trajectory_metadata(prompt_ids, response_mask, llm_turn_spans, tool_call_err
     n = len(response_mask)
     llm_turn_spans = [(min(int(s), n), min(int(e), n)) for s, e in llm_turn_spans]
     flags = list(tool_call_error_flags)
+    # A span is recorded when the model returns; the flag when the agent processes the turn.
+    # A final turn that ended the run before it was processed (e.g. an empty or unparsable
+    # tool call raising in the agent) has a span and no flag. It is not known to be a tool-call
+    # error, so it gets False instead of making the whole row misaligned (which would drop the
+    # flags of every earlier turn).
+    if len(llm_turn_spans) == len(flags) + 1:
+        flags.append(False)
+        tool_call_error_flags = flags
     if len(flags) == len(llm_turn_spans):
         kept = [(span, flag) for span, flag in zip(llm_turn_spans, flags, strict=True) if span[0] < n]
         llm_turn_spans = [span for span, _ in kept]

@@ -264,6 +264,33 @@ def test_gar_unusable_result_falls_back_to_grpo():
     assert metrics["gar/groups_fallback"] == 1.0
 
 
+def test_uni_agent_layout_feeds_gar_and_the_budget_metric():
+    # uni-agent flattens extra_fields into top-level fields; the runner's reward info arrives as
+    # a top-level ``reward_extra_info``.
+    from verl.trainer.ppo.gar import Grade, GroupResult
+
+    rows = []
+    for key, fields, tag in _gar_rows():
+        i = int(key.split("_")[1])
+        fields = dict(fields)
+        fields.pop("extra_fields")
+        fields["reward_extra_info"] = {"model_patch": f"diff {i}", "task": "Fix it", "exec_budget_hit": i == 0}
+        rows.append((key, fields, tag))
+    seen = []
+
+    def grader(groups):
+        seen.extend(groups)
+        passing = [c.session_key for c in groups[0].candidates if c.passed]
+        return {groups[0].group_id: GroupResult({k: Grade("T1", 0) for k in passing})}
+
+    trainer = _gar_trainer(grader)
+    trainer.config.actor_rollout_ref.rollout.n = 8
+    _, metrics = _run(trainer, rows)
+    info = {c.session_key: c.extra_fields["reward_extra_info"] for c in seen[0].candidates}
+    assert info["g_2"]["model_patch"] == "diff 2" and info["g_2"]["task"] == "Fix it"
+    assert metrics["rollout/exec_budget_hit_rate"] == pytest.approx(1 / 8)
+
+
 def test_gar_grader_error_falls_back_to_grpo():
     def grader(groups):
         raise TimeoutError("grader timed out")
