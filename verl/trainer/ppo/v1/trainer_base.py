@@ -2075,9 +2075,10 @@ class PPOTrainer(ABC):
         # GAR (algorithm.gar): grade mixed groups on the outcome scores; confirmed hacks -> 0.
         gar_step = getattr(self, "_gar_step", None)
         if gar_step is not None:
-            metrics.update(
-                gar_step.grade(data.batch["token_level_rewards"], group_ids, batch.keys, invalid, extra_fields_list)
+            data.batch["token_level_rewards"], gar_metrics = gar_step.grade(
+                data.batch["token_level_rewards"], group_ids, batch.keys, invalid, extra_fields_list
             )
+            metrics.update(gar_metrics)
         if extra_fields_list is not None:
             hit_rate = advantage_fixes.exec_budget_hit_rate(extra_fields_list, batch.keys, invalid)
             if hit_rate is not None:

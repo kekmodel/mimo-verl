@@ -118,3 +118,59 @@ def test_config_validation():
         GARConfig(f_min=0.9, f_max=0.5)
     with pytest.raises(ValueError, match="lambda_max"):
         GARConfig(lambda_max=0.5)
+
+
+# --- GARStep on small tensors -------------------------------------------------------------
+
+import numpy as np  # noqa: E402
+import torch  # noqa: E402
+
+from verl.trainer.ppo.gar import GARStep  # noqa: E402
+
+KEYS = [f"u_{i}_0" for i in range(4)]
+
+
+def _step(grader):
+    rewards = torch.zeros(4, 3)
+    rewards[:3, -1] = 1.0  # three passes, one failure
+    step = GARStep(GARConfig(), grader)
+    out, m = step.grade(rewards, np.array(["u"] * 4, dtype=object), KEYS, torch.zeros(4, dtype=torch.bool), None)
+    return step, rewards, out, m
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        GroupResult(None, []),
+        GroupResult({"u_0": Grade("T1", 0)}, None),
+        GroupResult({"u_0": {"tier": "T1", "rank": 0}, "u_1": Grade("T1", 0), "u_2": Grade("T1", 0)}),
+        GroupResult({"u_0": Grade("T1", None), "u_1": Grade("T1", 0), "u_2": Grade("T1", 0)}),
+        GroupResult({"u_0": Grade("T1", True), "u_1": Grade("T1", 0), "u_2": Grade("T1", 0)}),
+        {"grades": {}},
+    ],
+)
+def test_malformed_results_fall_back_instead_of_crashing(bad):
+    _, rewards, out, m = _step(lambda groups: {groups[0].group_id: bad})
+    assert m["gar/groups_fallback"] == 1.0 and m["gar/groups_graded"] == 0.0
+    assert torch.equal(out, rewards)
+
+
+def test_grader_returning_a_non_dict_falls_back():
+    _, _, _, m = _step(lambda groups: [None])
+    assert m["gar/grader_error"] == 1.0 and m["gar/groups_fallback"] == 1.0
+
+
+def test_grades_on_failures_do_not_move_the_factors():
+    grades = {"u_3": Grade("T1", 0), "u_0": Grade("T1", 1), "u_1": Grade("T2", 0), "u_2": Grade("T2", 1)}
+    step, _, _, m = _step(lambda groups: {groups[0].group_id: GroupResult(grades)})
+    # Ranked among the passes only: u_0 is the T1 top (1.0), not a runner-up (0.9).
+    assert step._f == {"u_0": 1.0, "u_1": 0.85, "u_2": 0.4}
+    assert m["gar/grades_on_failures"] == 1.0
+
+
+def test_hacks_are_zeroed_on_a_copy():
+    grades = {"u_0": Grade("T1", 0), "u_1": Grade("T2", 0)}
+    step, rewards, out, m = _step(lambda groups: {groups[0].group_id: GroupResult(grades, hacks=["u_2"])})
+    assert out[2].sum().item() == 0.0 and rewards[2].sum().item() == 1.0  # rm_scores untouched
+    assert step._passed == {"u_0": True, "u_1": True, "u_2": False, "u_3": False}
+    assert m["gar/confirmed_hacks"] == 1.0

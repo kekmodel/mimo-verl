@@ -240,7 +240,6 @@ algorithm:
     f_low: 0.2
     lambda_max: 1.5
     pass_threshold: 1.0
-    zero_confirmed_hacks: true
     # LLM API grader (verl/trainer/ppo/gar_api_grader.py). run_train.sh fills url / api / model
     # from GAR_GRADER_URL / GAR_GRADER_API / GAR_GRADER_MODEL. The key is read on the trainer
     # node from api_key_file or the env var api_key_env, never from this config.

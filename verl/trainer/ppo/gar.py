@@ -52,8 +52,6 @@ class GARConfig:
     lambda_max: float = 1.5
     # A rollout counts as passing when its outcome score (before length shaping) is >= this.
     pass_threshold: float = 1.0
-    # Reset confirmed hacks to reward 0 before the group statistics.
-    zero_confirmed_hacks: bool = True
     # {"path": ..., "name": ..., "kwargs": {...}}: a callable ``grade(groups) -> results``.
     grader: dict[str, Any] = field(default_factory=dict)
 
@@ -126,20 +124,29 @@ def load_grader(cfg: GARConfig) -> Grader:
     return obj(**kwargs) if isinstance(obj, type) else (lambda groups: obj(groups, **kwargs))
 
 
-def validate_result(group: Group, result: Optional[GroupResult]) -> Optional[str]:
-    """Why ``result`` cannot be used for ``group``, or None."""
+def validate_result(group: Group, result: Any) -> Optional[str]:
+    """Why ``result`` cannot be used for ``group``, or None. Type-strict: a custom grader may
+    return anything, and anything but a well-formed result falls back to GRPO."""
     if result is None:
         return "no result"
+    if not isinstance(result, GroupResult):
+        return f"result is {type(result).__name__}, not GroupResult"
+    if not isinstance(result.grades, dict) or not isinstance(result.hacks, list | tuple):
+        return "grades must be a dict and hacks a list"
     keys = {c.session_key for c in group.candidates}
     passing = {c.session_key for c in group.candidates if c.passed}
+    if not all(isinstance(h, str) for h in result.hacks):
+        return "hack ids must be strings"
     hacks = set(result.hacks)
     if not hacks <= passing:
         return "hack outside the passing candidates"
     for key, grade in result.grades.items():
         if key not in keys:
             return f"grade for unknown candidate {key}"
-        if grade.tier not in TIERS or int(grade.rank) < 0:
-            return f"bad grade {grade}"
+        if not isinstance(grade, Grade) or grade.tier not in TIERS:
+            return f"bad grade {grade!r}"
+        if isinstance(grade.rank, bool) or not isinstance(grade.rank, int) or grade.rank < 0:
+            return f"bad rank {grade.rank!r}"
     missing = passing - hacks - set(result.grades)
     if missing:
         return f"passing candidates missing from the ranking: {sorted(missing)}"
@@ -212,8 +219,9 @@ class GARStep:
         self._passed: dict[str, bool] = {}
         self._f: dict[str, float] = {}
 
-    def grade(self, token_level_rewards, group_ids, batch_keys, invalid, extra_fields) -> dict[str, float]:
-        """Call the grader on mixed groups and zero confirmed hacks in ``token_level_rewards``."""
+    def grade(self, token_level_rewards, group_ids, batch_keys, invalid, extra_fields):
+        """Call the grader on mixed groups. Returns ``(rewards, metrics)``: a copy of
+        ``token_level_rewards`` with confirmed hacks reset to 0, and the metrics."""
         from verl.trainer.ppo.advantage_fixes import final_rows_by_session
 
         final = final_rows_by_session(batch_keys)
@@ -238,38 +246,54 @@ class GARStep:
         metrics = {"gar/groups_eligible": float(len(groups)), "gar/groups_graded": 0.0, "gar/groups_fallback": 0.0}
         self._groups, self._passed, self._f = {}, {}, {}
         if not groups:
-            return metrics
+            return token_level_rewards, metrics
         try:
-            results = self.grader(groups) or {}
+            results = self.grader(groups)
+            if results is None:
+                results = {}
+            if not isinstance(results, dict):
+                raise TypeError(f"grader returned {type(results).__name__}, not a dict")
         except Exception as e:  # noqa: BLE001 - an unusable grade falls back to GRPO, like an unusable result
             logger.warning("[gar] grader failed on %d groups, falling back to GRPO: %s", len(groups), e)
             metrics["gar/grader_error"] = 1.0
             metrics["gar/groups_fallback"] = float(len(groups))
-            return metrics
+            return token_level_rewards, metrics
+        rewards = token_level_rewards.clone()  # hacks are zeroed on a copy, never on rm_scores
         tiers = {t: 0 for t in TIERS}
-        hacks = 0
+        hacks = grades_on_failures = 0
         for group in groups:
             result = results.get(group.group_id)
-            if validate_result(group, result) is not None:
+            reason = validate_result(group, result)
+            if reason is None:
+                try:
+                    hacked = set(result.hacks)
+                    passing = {c.session_key for c in group.candidates if c.passed} - hacked
+                    # Only passing candidates are ranked (paper 3.2); a grade on a failure must not
+                    # move the T1 top or the T2 tied-group count.
+                    grades_on_failures += sum(1 for k in result.grades if k not in passing and k not in hacked)
+                    f = factors({k: g for k, g in result.grades.items() if k in passing}, self.cfg)
+                except Exception as e:  # noqa: BLE001
+                    reason = f"{type(e).__name__}: {e}"
+            if reason is not None:
+                logger.warning("[gar] group %s falls back to GRPO: %s", group.group_id, reason)
                 metrics["gar/groups_fallback"] += 1
                 continue
             metrics["gar/groups_graded"] += 1
-            hacked = set(result.hacks) if self.cfg.zero_confirmed_hacks else set()
-            f = factors({k: g for k, g in result.grades.items() if k not in hacked}, self.cfg)
             self._groups[group.group_id] = [c.session_key for c in group.candidates]
             for c in group.candidates:
-                self._passed[c.session_key] = c.passed and c.session_key not in hacked
-                if self._passed[c.session_key]:
+                self._passed[c.session_key] = c.session_key in passing
+                if c.session_key in passing:
                     self._f[c.session_key] = f[c.session_key]
                     tiers[result.grades[c.session_key].tier] += 1
                 if c.session_key in hacked:
-                    token_level_rewards[final[c.session_key]] = 0.0
+                    rewards[final[c.session_key]] = 0.0
                     hacks += 1
         graded = sum(tiers.values())
         metrics["gar/confirmed_hacks"] = float(hacks)
+        metrics["gar/grades_on_failures"] = float(grades_on_failures)
         for t, count in tiers.items():
             metrics[f"gar/tier_share_{t}"] = count / graded if graded else 0.0
-        return metrics
+        return rewards, metrics
 
     def redistribute(self, advantages, response_mask, token_level_rewards, batch_keys) -> tuple[Any, dict[str, float]]:
         """Replace graded groups' GRPO advantages with the redistributed ones."""
