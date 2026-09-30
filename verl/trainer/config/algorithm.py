@@ -802,3 +802,5 @@ class AlgoConfig(BaseConfig):
     # Group-relative length penalty (report Eq. 4) applied to raw outcome scores before GRPO.
     # Same fields as verl.utils.length_penalty.LengthPenaltyConfig; None disables.
     length_penalty: Optional[dict[str, Any]] = None
+    # GAR, see verl.trainer.ppo.gar.GARConfig; None or enable=false disables.
+    gar: Optional[dict[str, Any]] = None

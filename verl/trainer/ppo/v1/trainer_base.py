@@ -48,7 +48,7 @@ from verl.single_controller.ray import (
     create_colocated_worker_cls,
 )
 from verl.trainer.distillation import is_distillation_enabled
-from verl.trainer.ppo import advantage_fixes, core_algos
+from verl.trainer.ppo import advantage_fixes, core_algos, gar
 from verl.trainer.ppo.core_algos import agg_loss
 from verl.trainer.ppo.metric_utils import (
     RolloutMoELoadBalanceMetricsAccumulator,
@@ -379,6 +379,14 @@ class PPOTrainer(ABC):
     def __init__(self, config: DictConfig):
         self.config = config
         advantage_fixes.check_policy_loss_config(config)
+        self._gar_step = None
+        gar_cfg = gar.GARConfig.from_raw(OmegaConf.select(config, "algorithm.gar", default=None))
+        if gar_cfg is not None:
+            if config.algorithm.adv_estimator != core_algos.AdvantageEstimator.GRPO or config.algorithm.get(
+                "norm_adv_by_std_in_grpo", True
+            ):
+                raise ValueError("algorithm.gar needs adv_estimator=grpo with norm_adv_by_std_in_grpo=false")
+            self._gar_step = gar.GARStep(gar_cfg, gar.load_grader(gar_cfg))
         self.use_critic = need_critic(self.config)
         self.use_reference_policy = need_reference_policy(self.config)
         self.use_teacher_policy = need_teacher_policy(self.config)
@@ -2039,10 +2047,17 @@ class PPOTrainer(ABC):
                 )
             group_suffixes = np.asarray(harness_values, dtype=object)
         # GRPO group ids exactly as compute_advantage_for_multi_trajectories forms them; every
-        # group-relative step below (length penalty, fill, correction) uses the same ids.
+        # group-relative step below (GAR, length penalty, fill, correction) uses the same ids.
         group_ids = data.non_tensor_batch["uid"]
         if group_suffixes is not None:
             group_ids = np.asarray([f"{u}::{s}" for u, s in zip(group_ids, group_suffixes, strict=True)], dtype=object)
+
+        # GAR (algorithm.gar): grade mixed groups on the outcome scores; confirmed hacks -> 0.
+        gar_step = getattr(self, "_gar_step", None)
+        if gar_step is not None:
+            metrics.update(
+                gar_step.grade(data.batch["token_level_rewards"], group_ids, batch.keys, invalid, extra_fields_list)
+            )
         if extra_fields_list is not None:
             _hits = [advantage_fixes.exec_budget_hit(ef) for ef in extra_fields_list]
             metrics["rollout/exec_budget_hit_rate"] = float(np.mean(_hits)) if _hits else 0.0
@@ -2130,6 +2145,12 @@ class PPOTrainer(ABC):
             config=self.config.algorithm,
             group_suffixes=group_suffixes,
         )
+
+        if gar_step is not None:
+            data.batch["advantages"], gar_metrics = gar_step.redistribute(
+                data.batch["advantages"], data.batch["response_mask"], data.batch["token_level_rewards"], batch.keys
+            )
+            metrics.update(gar_metrics)
 
         is_grpo = self.config.algorithm.adv_estimator == core_algos.AdvantageEstimator.GRPO
         if is_grpo and bool(self.config.algorithm.get("group_size_correction", True)):

@@ -225,6 +225,23 @@ algorithm:
   exclude_invalid_rows: true
   # Rescale GRPO groups that lost rows (infra, dropped sessions) to the full-group factor.
   group_size_correction: true
+  # GAR (report 4.3.2, GAGAR arXiv 2609.32577): a grader ranks the passes of each mixed group and
+  # positive advantage moves toward better passes, total preserved. Factors are the paper's
+  # Flash configuration. The grader is a callable grade(groups) -> {group_id: GroupResult | None}
+  # loaded from grader.path / grader.name (verl.trainer.ppo.gar documents the types).
+  gar:
+    enable: false
+    f_runner: 0.9
+    f_max: 0.85
+    f_min: 0.4
+    f_low: 0.2
+    lambda_max: 1.5
+    pass_threshold: 1.0
+    zero_confirmed_hacks: true
+    grader:
+      path: null
+      name: null
+      kwargs: {}
   # Report Eq. (1): L = -sum_t sg[pi/mu] * M * A * log pi, with mu the rollout engine's
   # per-token probability (not recomputed, also across partial-rollout weight updates) and
   # M = 0 outside [0.2, 5.0] (IcePop-style mask; masked tokens stay in the normalizer).

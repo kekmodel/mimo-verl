@@ -18,16 +18,35 @@
 >
 > `git submodule update`를 다시 실행하면 서브모듈 수정이 지워지므로, 그 뒤에 패치를 다시 적용해야 합니다. verl 쪽 수정은 이 브랜치에 커밋돼 있어서 따로 패치할 것이 없습니다.
 >
-> **조정할 하이퍼파라미터** (환경 변수)
+> **설정** (모두 선택 가능. 기본값은 수학적으로 맞는 쪽이고, 원본 동작이 필요하면 표의 값으로 되돌림)
 >
-> | 변수 | Code | General | 의미 |
+> Hydra 키는 실행 스크립트 뒤에 `key=value`로 넘기면 됩니다 (`recipes/*/run_*.sh`가 추가 인자를 그대로 전달).
+>
+> | 키 | 기본값 (Code / General) | 원본 동작으로 | 바꾸는 것 |
 > |---|---|---|---|
-> | `EXEC_BUDGET_SECONDS` | 3000 | 300 | 도구 실행 시간 예산. 넘으면 멈추고 그 상태로 채점. `rollout/exec_budget_hit_rate`가 1% 안팎이 되게 조정 |
-> | `TRAJECTORY_TIMEOUT` | 7200 | 1200 | 벽시계 안전장치(원본 값). 걸리면 infra로 제외되므로 거의 0이어야 함 |
+> | `algorithm.exclude_invalid_rows` | `true` | `false` | infra·sentinel 행을 GRPO baseline, loss mask, prompt-mean 분모에서 모두 제외 |
+> | `algorithm.group_size_correction` | `true` | `false` | 유효 행이 줄어든 그룹을 (1−1/n)/(1−1/n_valid)로 보정 (= RLOO × (1−1/n)) |
+> | `algorithm.length_penalty.*` | enable, X 0.2, p30, 통과율 > 0.5, γ 1.5 | `enable=false` | 그룹 상대 길이 페널티 (리포트 식 4) |
+> | `algorithm.tool_call_error_penalty.{enable,strategy,penalty_value}` | `true`, `adv_signed`, `2.0` | `strategy=monitor` | tool call 오류 구간 페널티 (리포트 식 5) |
+> | `algorithm.tool_call_error_penalty.mask_source` | `field` / `spans` | – | 오류 마스크 출처: uni-agent 텐서 또는 턴 구간 메타데이터 |
+> | `algorithm.rollout_correction.*` + `actor_rollout_ref.actor.policy_loss.loss_mode` | bypass, reinforce, token, `"0.2_5.0"` + `bypass_mode` | `algorithm.rollout_correction.bypass_mode=false algorithm.rollout_correction.rollout_is=null actor_rollout_ref.actor.policy_loss.loss_mode=vanilla` (세 개 모두. `rollout_is`를 남기면 PPO에 IcePop 마스크가 곱해짐) | 리포트 식 (1): REINFORCE × sg[π/μ] × [0.2, 5] 마스크. 두 키가 어긋나면 실행 전에 막힘 |
+> | `algorithm.gar.*` (Code) | `enable=false` | – | GAR 재분배. 켜려면 `gar.grader.{path,name}`에 채점기 callable 지정. factor 기본값은 GAGAR 논문 Flash 설정 |
+> | `trainer.v1.sampler.max_off_policy_strategy` (`MAX_OFF_POLICY_STRATEGY`) | `wait` | `drop` | staleness 한도에 닿은 롤아웃을 버리지 않고 기다림 |
+> | `...agent_runners.mimoagent.trajectory_selection` (`TRAJECTORY_SELECTION`) | `all` | `longest` | 세션의 모든 궤적 학습 |
+> | `EXEC_BUDGET_SECONDS` | 3000 / 300 | 빈 값 | 도구 실행 시간 예산. 다 쓰면 멈추고 최종 상태로 채점. `rollout/exec_budget_hit_rate` ≈ 1%로 조정 |
+> | `...runner_kwargs.exec_budget_agent_types` (Code) | `null` = 모델 기반 하니스 | – | 예산을 적용할 하니스 |
+> | `exec_budget_probe_timeout` | 30 | – | 예산 소진 뒤 pod 생존 확인 시간. 죽었으면 infra |
+> | `TRAJECTORY_TIMEOUT` | 7200 / 1200 | 같음 | 벽시계 안전장치. 걸리면 infra로 제외 |
+> | `...agent_framework.timeout_as_failure` (uni-agent 패치) | `false` | – | 자체 예산 없는 러너용: 시간 초과 부분 궤적을 0점 처리 |
+> | `algorithm.group_advantage_by_harness` | `false` | 같음 | 켜면 GRPO·GAR·길이 페널티가 모두 `uid::harness` 그룹 기준 |
 >
-> 첫 실행에서 확인할 지표: `rollout/exec_budget_hit_rate`, `training/invalid_rows`, General `wall_backstop_hit`, uni-agent `num_failed_sessions`, `rollout_corr/rollout_is_oob_ratio`
+> `DROP_INFRA_FROM_GROUP`은 제거됐습니다 (설정하면 실행 스크립트가 멈추고 대신 쓸 키를 알려 줌).
 >
-> CPU 테스트만 검증했고 GPU·실제 pod 실행은 아직 검증하지 않았습니다.
+> 첫 실행에서 확인할 지표: `rollout/exec_budget_hit_rate`, `training/invalid_rows`, General `wall_backstop_hit`, uni-agent `num_failed_sessions`, `rollout_corr/rollout_is_oob_ratio`, GAR을 켜면 `gar/groups_graded`·`gar/groups_fallback`·`gar/lambda_capped_rate`
+>
+> CPU 테스트만 검증했습니다 (`_compute_advantage`는 실제 TransferQueue 배치로 통합 테스트). GPU·실제 pod 실행은 아직 검증하지 않았습니다.
+>
+> Code와 General을 한 run에서 섞으려면 두 레시피가 같은 롤아웃 매니저를 써야 합니다 (지금은 Code가 uni-agent 어댑터, General이 verl AgentLoop). 이것과 Sample Mixer는 다음 작업입니다.
 
 Agentic RL training code for MiMo. The detailed training recipe can be found in Section 7 of our report [MiMo-V2.6: Scaling Reinforcement Learning Towards
 Self-Improvement](https://huggingface.co/XiaomiMiMo/MiMo-V2.6-Pro-RL/blob/main/MiMo_V2_6_technical_report.pdf).

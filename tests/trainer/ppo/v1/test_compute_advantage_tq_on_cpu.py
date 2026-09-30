@@ -214,6 +214,69 @@ def test_exclude_invalid_rows_off_trains_infra_rows_as_ordinary_rows():
     assert metrics["training/invalid_rows"] == 0.0
 
 
+def _gar_trainer(grader):
+    from verl.trainer.ppo import gar
+
+    trainer = _trainer()
+    trainer._gar_step = gar.GARStep(gar.GARConfig(), grader)
+    return trainer
+
+
+def _gar_rows():
+    # Four passes (one a confirmed hack) and four failures in one group of eight.
+    rows = [_row(f"g_{i}_0", 1.0 if i < 4 else 0.0, 4) for i in range(8)]
+    return rows
+
+
+def test_gar_zeroes_hacks_and_redistributes_passes():
+    from verl.trainer.ppo.gar import Grade, GroupResult
+
+    seen = []
+
+    def grader(groups):
+        seen.extend(groups)
+        grades = {"g_0": Grade("T1", 0), "g_1": Grade("T2", 0), "g_2": Grade("T2", 1)}
+        return {groups[0].group_id: GroupResult(grades, hacks=["g_3"])}
+
+    trainer = _gar_trainer(grader)
+    trainer.config.actor_rollout_ref.rollout.n = 8
+    res, metrics = _run(trainer, _gar_rows())
+
+    assert len(seen) == 1 and len(seen[0].candidates) == 8
+    # After the hack reset: 3 passes out of 8, f = (1, 0.85, 0.4); A* = (1 - R) f / mean(f).
+    mean = 3 / 8
+    fbar = (1.0 + 0.85 + 0.4) / 3
+    expected = {0: (1 - mean) * 1.0 / fbar, 1: (1 - mean) * 0.85 / fbar, 2: (1 - mean) * 0.4 / fbar}
+    for i, v in expected.items():
+        assert torch.allclose(res[f"g_{i}_0"]["adv"], torch.full((4,), v), atol=1e-6), i
+    for i in range(3, 8):  # the hack is now a failure like the others
+        assert torch.allclose(res[f"g_{i}_0"]["adv"], torch.full((4,), -mean), atol=1e-6), i
+    assert metrics["gar/groups_graded"] == 1.0 and metrics["gar/confirmed_hacks"] == 1.0
+
+
+def test_gar_unusable_result_falls_back_to_grpo():
+    trainer = _gar_trainer(lambda groups: {g.group_id: None for g in groups})
+    trainer.config.actor_rollout_ref.rollout.n = 8
+    res, metrics = _run(trainer, _gar_rows())
+    for i in range(8):
+        r = 1.0 if i < 4 else 0.0
+        assert torch.allclose(res[f"g_{i}_0"]["adv"], torch.full((4,), r - 0.5), atol=1e-6)
+    assert metrics["gar/groups_fallback"] == 1.0
+
+
+def test_gar_grader_error_falls_back_to_grpo():
+    def grader(groups):
+        raise TimeoutError("grader timed out")
+
+    trainer = _gar_trainer(grader)
+    trainer.config.actor_rollout_ref.rollout.n = 8
+    res, metrics = _run(trainer, _gar_rows())
+    for i in range(8):
+        r = 1.0 if i < 4 else 0.0
+        assert torch.allclose(res[f"g_{i}_0"]["adv"], torch.full((4,), r - 0.5), atol=1e-6)
+    assert metrics["gar/grader_error"] == 1.0 and metrics["gar/groups_fallback"] == 1.0
+
+
 def test_tool_error_spans_zero_only_the_failed_turn_of_a_success():
     rows = [
         _row("c_0_0", 1.0, 6, spans=[[0, 3], [3, 6]], flags=[False, True]),

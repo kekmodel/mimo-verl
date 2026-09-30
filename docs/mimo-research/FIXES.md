@@ -26,6 +26,18 @@ git submodule update --init third_party/mimoagent-osr third_party/uni_agent
 | 7 | `apply_tool_penalty`가 `rebalance_dense`에 인자 하나를 더 넘김 → TypeError | 인자 수정, prompt-mean 가중치 전달 | `verl/trainer/ppo/arvo_penalties.py` |
 | 8 | 예산에 잘린 궤적의 턴 구간이 응답 길이를 넘으면 예외 | 구간을 잘라 맞춤 | `recipes/*/trajectory_metadata.py`, `arvo_penalties.tool_error_hits` |
 | 9 | General 레시피의 `algorithm.length_penalty`를 읽는 코드가 없음 (설정만 있고 무효) | 트레이너에 연결, 옛 키 이름(enable/deadzone/saturate)도 허용 | `advantage_fixes.length_penalty_config` |
+| 10 | `group_advantage_by_harness`를 켜면 GRPO는 `uid::harness`로 묶는데 길이 페널티 기준은 `uid`로 잡음 | 모든 그룹 단계(GAR, 길이 페널티, 무효 행 채움, 크기 보정)가 GRPO와 같은 그룹 ID를 씀 | `trainer_base._compute_advantage` |
+| 11 | bypass 손실은 유효 토큰 없는 마이크로배치에서 예외 | 손실 0, 같은 메트릭 키 | `core_algos.compute_policy_loss_bypass_mode` |
+
+## 선택 가능하게 만든 것
+
+원칙: 하이퍼파라미터와 verl 기본 기능 밖의 추가 기능은 설정으로 고를 수 있어야 한다. 기본값은 수학적으로 맞는 쪽, 원본 동작은 설정 한 줄로 되돌린다. 전체 표는 저장소 README.
+
+- `algorithm.exclude_invalid_rows` (기본 true): 무효 행 제외. false면 원본처럼 sentinel 행만 baseline에서 빠지고 `is_infra` 행은 일반 행으로 학습
+- 손실 방식: `algorithm.rollout_correction.*`와 `actor.policy_loss.loss_mode`. `bypass_mode`와 `loss_mode`가 어긋나면(한쪽만 바꾸면) 트레이너 시작과 Code preflight(`validate_resolved_config.py`)에서 막음. preflight는 더 이상 특정 손실 방식을 강제하지 않음. 원본 PPO로 되돌리려면 `bypass_mode=false`, `rollout_is=null`, `loss_mode=vanilla` 세 개를 모두 바꿈 (`rollout_is`가 남으면 decoupled 경로가 IcePop 가중치를 PPO 손실에 곱함)
+- 도구 실행 예산: `exec_budget_seconds`, Code `exec_budget_agent_types`(null = 모델 기반 하니스), `exec_budget_probe_timeout`(30)
+- `algorithm.gar.*` (아래 절)
+- 제거: `DROP_INFRA_FROM_GROUP`. 트레이너가 더 읽지 않는데 실행 스크립트와 `scripts/*`가 기본으로 켜고 있었음. 이제 설정하면 실행 스크립트가 멈추고 `exclude_invalid_rows`를 쓰라고 알려 줌
 
 ## 시간 예산 처리 (6번의 설계)
 
@@ -56,19 +68,35 @@ git submodule update --init third_party/mimoagent-osr third_party/uni_agent
 - 정책 손실을 리포트 식 (1)로: L = −Σ sg[π/μ]·M·A·log π. μ는 롤아웃 엔진 확률(재계산 안 함, partial rollout도 그대로), M은 비율이 [0.2, 5.0] 밖이면 0 (IcePop 방식, 마스크된 토큰도 prompt-mean 분모에는 남음). 원본 설정은 PPO clip 0.2 + dual-clip 3.0이었음. verl 기존 옵션 사용: `algorithm.rollout_correction` = bypass_mode true, loss_type reinforce, rollout_is token, rollout_is_threshold "0.2_5.0" / `actor.policy_loss.loss_mode: bypass_mode`. Code·General 둘 다
   - 리포트는 경계를 advantage 부호별로 나누고 엔트로피로 조절하지만 두 부호 모두 [0.2, 5.0]에서 시작하고 조절 규칙은 미공개 → 고정 범위 하나로 둠
   - 이를 위해 고친 코드: `ActorConfig`의 "prompt-mean은 vanilla만" 제약을 bypass_mode까지 허용 (둘 다 prompt 가중치를 agg_loss에 넘김). bypass 손실은 유효 토큰이 없는 마이크로배치에서 예외를 냈음 → 무효 행만 든 마이크로배치(긴 Code 궤적에서 흔함)가 학습을 멈출 수 있어, 손실 0과 같은 메트릭 키(값 0)를 내도록 수정 (`core_algos.compute_policy_loss_bypass_mode`)
-  - `recipes/code/validate_resolved_config.py`가 bypass_mode false를 강제하던 것을 새 설정으로 교체
+  - `recipes/code/validate_resolved_config.py`가 bypass_mode false를 강제하던 것을, 두 손실 키가 서로 맞는지만 검사하도록 교체
+
+## GAR (선택, 기본 꺼짐)
+
+`verl/trainer/ppo/gar.py`, 설정 `algorithm.gar` (Code 레시피에 꺼진 상태로 있음). 리포트 4.3.2절과 GAGAR 논문(arXiv 2609.32577)의 식 6~8, 부록 A.1·A.2 그대로.
+
+- 대상: 유효 세션 2개 이상, 통과(`score >= pass_threshold`, 기본 1.0)와 실패가 섞인 그룹. 세션은 마지막 행(GRPO가 쓰는 행)으로 판정
+- GRPO 전: 채점기 호출 → 확정 hack은 reward 0 (`zero_confirmed_hacks`) → 그다음 길이 페널티와 GRPO
+- GRPO 후: a = r − 평균, 통과는 a⁺ = max(a, 0), λ = min(Σa⁺ / Σf·a⁺, `lambda_max`), B = λ·f·a⁺(통과) 또는 a(실패), A = B − 평균(B). 세션의 모든 행에 적용. 그다음 그룹 크기 보정, 토큰 단위 페널티
+- factor: T1 1등 1, T1 나머지 `f_runner` 0.9, T2 동률 그룹 순서대로 `f_max` 0.85 → `f_min` 0.4 선형, T3 `f_low` 0.2 (논문 Flash 설정)
+- 채점기: `gar.grader.{path, name, kwargs}`로 불러오는 callable. `grade(groups: list[Group]) -> {group_id: GroupResult | None}`. `GroupResult(grades={session_key: Grade(tier, rank)}, hacks=[...])`. 통과 후보가 순위에서 빠졌거나 형식이 틀리면 그 그룹은 원래 advantage 유지 (`gar/groups_fallback`). 채점기가 예외를 내면 그 스텝의 모든 대상 그룹이 원래 advantage로 돌아감 (`gar/grader_error`)
+- 조건: `adv_estimator=grpo`, `norm_adv_by_std_in_grpo=false` (아니면 시작 시 오류)
+- 지표: `gar/groups_eligible`, `gar/groups_graded`, `gar/groups_fallback`, `gar/confirmed_hacks`, `gar/tier_share_T{1,2,3}`, `gar/lambda_mean`, `gar/lambda_capped_rate`
+- 채점기 구현은 넣지 않음: 논문의 채점기는 공개되지 않은 SFT 모델이고, 레포를 읽고 테스트를 돌리는 에이전트라 pod 인프라가 필요. 논문도 처음엔 Claude Opus 5를 썼음(그룹당 약 2,000초). 채점은 지금 `_compute_advantage` 안에서 동기로 돌며, 논문처럼 롤아웃과 겹쳐 돌리려면 샘플러 쪽 작업이 필요
 
 ## 하지 않은 것
 
-- GRS(오프라인 과제별 루브릭 + 채점 에이전트, Code 데이터에 루브릭 없음), GAR(규칙·상수는 GAGAR 논문 arXiv 2609.32577에 공개, SFT 채점 모델만 미공개. 공개 모델 채점기로 구현 가능), Sample Mixer(도메인 혼합, 도메인별로 따로 학습하면 불필요), 엔트로피 기반 IS 경계 조절(규칙 미공개), overlong 규칙(상수 미공개)
+- GRS(오프라인 과제별 루브릭 + 채점 에이전트, Code 데이터에 루브릭 없음), GAR 채점기 구현(위), 엔트로피 기반 IS 경계 조절(규칙 미공개), overlong 규칙(상수 미공개)
+- Code와 General을 한 run에서 섞기와 Sample Mixer: 지금 Code는 uni-agent 어댑터가 롤아웃 매니저를 통째로 바꾸고 General은 verl AgentLoop라 한 run에 둘을 태울 수 없음. 공용 롤아웃 경로가 먼저 필요하고 실제 pod로 검증해야 하는 별도 작업
 - webdev 무효 행 표시 (도메인 범위 밖)
 - arvo·design 에이전트 루프에는 도구 실행 예산을 넣지 않음 (도메인 범위 밖, General과 같은 방식으로 옮기면 됨)
 
 ## 검증
 
-- 새로 추가한 CPU 테스트: `test_advantage_fixes_on_cpu.py`(16), `test_exec_budget_on_cpu.py`(1), `test_bypass_prompt_mean_on_cpu.py`(3: 식 (1) 기울기·범위 밖 마스크·분모, 전부 마스크된 마이크로배치, 다른 손실의 prompt-mean 거부)
-- 저장소 CPU 테스트 `tests/recipes tests/trainer/ppo tests/workers/config`를 원본(HEAD)과 비교: 원본 대비 새 실패 0건. 우리 쪽 실패 3건은 원본에서도 같은 실패 (로컬 모델 경로 없음 1, replay buffer DAPO 테스트 2). 원본 기본값을 고정해 둔 테스트 3개(trajectory_selection longest, bypass_mode false, DROP_INFRA_FROM_GROUP 게이트)는 바뀐 기본값에 맞춰 수정
+- 새로 추가한 CPU 테스트: `test_advantage_fixes_on_cpu.py`(16), `test_exec_budget_on_cpu.py`(1), `test_bypass_prompt_mean_on_cpu.py`(3), `test_gar_on_cpu.py`(7: factor 표, 합·비율 보존, 상한과 재중심화, 보상 공간 등가식, 비이진 보상, 결과 검증, 설정 검증), `v1/test_compute_advantage_tq_on_cpu.py`(6)
+- `test_compute_advantage_tq_on_cpu.py`는 실제 TransferQueue 파티션에 배치를 넣고 `_compute_advantage`를 끝까지 돌림: infra 행 마스킹, 여러 행 세션, 길이 페널티, 그룹 크기 보정, prompt-mean 가중치를 수식 값과 비교 / `exclude_invalid_rows=false`가 원본 동작 / 도구 오류 구간 페널티 / GAR hack 교정과 재분배 / 채점 결과 불량·채점기 예외 시 GRPO 그대로
+- 저장소 CPU 테스트 `tests/recipes tests/trainer/ppo tests/workers/config`를 원본(`mimo-oss`)과 비교: 원본 535 통과·3 실패, 우리 572 통과·3 실패. 실패 3건은 양쪽 같은 테스트 (replay buffer DAPO 2, 로컬 모델 경로 1). 우리 쪽에만 있는 실패 0건
+- 원본 기본값을 고정해 둔 테스트(trajectory_selection longest, bypass_mode false, DROP_INFRA_FROM_GROUP 관련 3곳)는 바뀐 기본값과 제거에 맞춰 수정
 - 실행: `PYTHONPATH=.:third_party/mimoagent-osr/src:third_party/uni_agent uv run --no-project --python 3.12 --with openai --with anthropic --with tenacity --with requests --with typer --with kubernetes --with xxhash --with TransferQueue==0.1.8 --with torch --with numpy --with pytest --with pytest-asyncio --with pydantic --with omegaconf --with tensordict --with packaging --with hydra-core --with codetiming --with ray --with transformers --with pillow --with pandas --with pyarrow --with datasets --with httpx --with cachetools --with uvicorn --with fastapi --with torchdata --with peft --with pyyaml --with jinja2 --with python-dotenv --with platformdirs --with rich python -m pytest -q tests/recipes tests/trainer/ppo tests/workers/config`
-- 두 레시피 설정을 Hydra로 합성하고 액터 설정을 dataclass로 변환해 bypass 손실까지 값이 전달되는 것 확인
+- 두 레시피 설정을 Hydra로 합성해 손실 키 일치 검사 통과, 한쪽만 바꾸면 막힘, PPO 방식으로 되돌리기 가능 확인
 - General env actor의 도구 시간 누적·동결(Ray 액터)과 두 레시피의 예산 경로는 실제 pod에서 돌려보지 않았음
-- **GPU 실행과 실제 TransferQueue 배치를 거친 `_compute_advantage`·bypass 손실 통합 경로는 검증하지 않았음**
+- **GPU 실행(액터 손실까지의 전체 스텝)과 실제 pod는 검증하지 않았음**
