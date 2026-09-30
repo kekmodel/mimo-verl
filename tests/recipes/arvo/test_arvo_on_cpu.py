@@ -173,18 +173,17 @@ class TestLauncherPreflight:
         assert result.returncode != 0
         assert "TRAIN_BATCH_SIZE" in result.stderr
 
-    def test_infra_strategy_conflict_fails(self):
+    def test_removed_drop_infra_flag_fails(self):
         result = self._run_arvo_sh(
             {
                 "MODEL_PATH": "/dummy/model",
                 "TRAIN_DATA": "/dummy/t.parquet",
                 "VAL_DATA": "/dummy/v.parquet",
-                "INVALID_REWARD_FOR_INFRA": "true",
                 "DROP_INFRA_FROM_GROUP": "1",
             }
         )
         assert result.returncode != 0
-        assert "conflicts" in result.stderr.lower() or "INVALID_REWARD_FOR_INFRA" in result.stderr
+        assert "exclude_invalid_rows" in result.stderr
 
 
 # ---------------------------------------------------------------------------

@@ -17,6 +17,8 @@
   # A hyperparameter: tune so rollout/exec_budget_hit_rate stays around 1% or below.
   # Sizing: budget + one command overshoot (bash max 300s) = half of trajectory_timeout.
   exec_budget_seconds: ${oc.env:EXEC_BUDGET_SECONDS,300}
+  # Liveness probe after a budget hit; a dead pod is dropped as infra.
+  exec_budget_probe_timeout: 30
   # Wall-clock backstop only (counts inference queueing and sandbox speed, which are not the
   # policy's); upstream value. A rollout it stops is dropped as infra; keep that near zero.
   trajectory_timeout: ${oc.env:TRAJECTORY_TIMEOUT,1200}

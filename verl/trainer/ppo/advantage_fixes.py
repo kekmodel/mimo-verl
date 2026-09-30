@@ -358,3 +358,25 @@ def tool_error_hits_from_spans(
                     mask[row, s:e] = True
     mask &= response_mask.to(torch.bool)
     return mask, {"penalty/tool_call_error_span_misaligned_rows": float(misaligned)}
+
+
+def check_policy_loss_config(config) -> None:
+    """Fail fast when the rollout-correction mode and the actor loss disagree.
+
+    ``algorithm.rollout_correction.bypass_mode`` makes the trainer use the rollout engine's
+    log-probs as the old policy, and only ``actor.policy_loss.loss_mode=bypass_mode`` computes
+    the loss against them (REINFORCE or PPO-clip, per ``rollout_correction.loss_type``). Either
+    one without the other trains on the wrong ratio without any error.
+    """
+    from omegaconf import OmegaConf
+
+    bypass = bool(OmegaConf.select(config, "algorithm.rollout_correction.bypass_mode", default=False))
+    loss_mode = str(OmegaConf.select(config, "actor_rollout_ref.actor.policy_loss.loss_mode", default="vanilla"))
+    if bypass != (loss_mode == "bypass_mode"):
+        raise ValueError(
+            "algorithm.rollout_correction.bypass_mode and actor_rollout_ref.actor.policy_loss.loss_mode "
+            f"disagree ({bypass} vs {loss_mode!r}): set bypass_mode=true with loss_mode=bypass_mode, "
+            "or bypass_mode=false with a non-bypass loss_mode"
+        )
+    if bypass and not bool(OmegaConf.select(config, "actor_rollout_ref.rollout.calculate_log_probs", default=False)):
+        raise ValueError("bypass_mode needs actor_rollout_ref.rollout.calculate_log_probs=true (rollout log-probs)")

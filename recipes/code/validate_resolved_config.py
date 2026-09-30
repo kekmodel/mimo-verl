@@ -37,6 +37,19 @@ def _check(config: dict[str, Any], dotted_path: str, expected: Any) -> None:
         raise ValueError(f"{dotted_path} must resolve to {expected!r}, got {actual!r}")
 
 
+def _check_policy_loss(config: dict[str, Any]) -> None:
+    """The loss is selectable; only the two keys that must agree are checked."""
+    bypass = bool(_get(config, "algorithm.rollout_correction.bypass_mode"))
+    loss_mode = _get(config, "actor_rollout_ref.actor.policy_loss.loss_mode")
+    if bypass != (loss_mode == "bypass_mode"):
+        raise ValueError(
+            "algorithm.rollout_correction.bypass_mode and actor_rollout_ref.actor.policy_loss.loss_mode "
+            f"disagree ({bypass} vs {loss_mode!r})"
+        )
+    if bypass and not _get(config, "actor_rollout_ref.rollout.calculate_log_probs"):
+        raise ValueError("bypass_mode needs actor_rollout_ref.rollout.calculate_log_probs=true")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("config", type=Path)
@@ -67,13 +80,6 @@ def main() -> None:
         raise ValueError("resolved config must be a mapping")
 
     expected = {
-        # Report Eq. (1): REINFORCE on rollout log-probs with a [0.2, 5.0] token mask.
-        "algorithm.rollout_correction.bypass_mode": True,
-        "algorithm.rollout_correction.loss_type": "reinforce",
-        "algorithm.rollout_correction.rollout_is": "token",
-        "algorithm.rollout_correction.rollout_is_threshold": "0.2_5.0",
-        "actor_rollout_ref.actor.policy_loss.loss_mode": "bypass_mode",
-        "actor_rollout_ref.rollout.calculate_log_probs": True,
         "transfer_queue.enable": True,
         "trainer.v1.trainer_mode": "colocate_async",
         "trainer.save_freq": args.save_freq,
@@ -113,6 +119,7 @@ def main() -> None:
         expected["data.apply_chat_template_kwargs.reasoning_effort"] = args.reasoning_effort
     for dotted_path, value in expected.items():
         _check(config, dotted_path, value)
+    _check_policy_loss(config)
 
     loggers = _get(config, "trainer.logger")
     if "tensorboard" not in loggers:

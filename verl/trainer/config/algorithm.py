@@ -791,6 +791,10 @@ class AlgoConfig(BaseConfig):
     gdpo_reward_keys: Optional[list[str]] = None
     gdpo_reward_weights: Optional[list[float]] = None
     invalid_reward_value: Optional[float] = None
+    # Exclude invalid rows (extra_fields is_infra, or a score equal to invalid_reward_value) from
+    # the GRPO baseline, the loss mask and the prompt-mean normalization. False reproduces
+    # upstream: sentinel rows leave only the baseline and is_infra rows train as ordinary rows.
+    exclude_invalid_rows: bool = True
     # Rescale each GRPO group by (1 - 1/n) / (1 - 1/n_valid) so groups that lost rows to
     # infra failures or dropped sessions keep the same expected-gradient factor as full groups
     # (GRPO's mean baseline includes the row itself). Identity for full groups.

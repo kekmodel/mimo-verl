@@ -32,6 +32,12 @@ MIMOAGENT_SRC="${MIMOAGENT_SRC:-${REPO_ROOT}/third_party/mimoagent-osr/src}"
   exit 2; }
 export PYTHONPATH="${REPO_ROOT}:${MIMOAGENT_SRC}:${PYTHONPATH:-}"
 
+if [ -n "${DROP_INFRA_FROM_GROUP:-}" ]; then
+  echo "DROP_INFRA_FROM_GROUP was removed: infra rows are excluded from the GRPO baseline and the" >&2
+  echo "  loss by algorithm.exclude_invalid_rows (default true). Unset it; set that key instead." >&2
+  exit 1
+fi
+
 if [ "${PPO_MINI_BATCH_SIZE}" != "${TRAIN_BATCH_SIZE}" ]; then
   echo "[webdev] prompt-mean requires PPO_MINI_BATCH_SIZE == TRAIN_BATCH_SIZE," \
        "got ${PPO_MINI_BATCH_SIZE} vs ${TRAIN_BATCH_SIZE}." >&2
@@ -118,7 +124,6 @@ RAY_ENV=(
   +ray_kwargs.ray_init.runtime_env.env_vars.POD_PROXY="'${POD_PROXY}'"
   +ray_kwargs.ray_init.runtime_env.env_vars.WEBDEV_GRADE_MODE="${WEBDEV_GRADE_MODE}"
   +ray_kwargs.ray_init.runtime_env.env_vars.WEBDEV_GRADE_HTTP="\"${WEBDEV_GRADE_HTTP}\""
-  +ray_kwargs.ray_init.runtime_env.env_vars.DROP_INFRA_FROM_GROUP="\"${DROP_INFRA_FROM_GROUP}\""
   +ray_kwargs.ray_init.runtime_env.env_vars.WEBDEV_DEBUG_DIR="${WEBDEV_DEBUG_DIR:-}"
   +ray_kwargs.ray_init.runtime_env.env_vars.WEBDEV_NODE_SELECTOR="'${WEBDEV_NODE_SELECTOR:-}'"
   +ray_kwargs.ray_init.runtime_env.env_vars.WEBDEV_TOLERATIONS="'${WEBDEV_TOLERATIONS:-}'"

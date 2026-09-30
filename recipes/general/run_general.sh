@@ -44,9 +44,9 @@ if [ "${INVALID_REWARD_FOR_INFRA}" = "true" ] && [ "${INVALID_REWARD_VALUE}" = "
   echo "INVALID_REWARD_FOR_INFRA=true needs INVALID_REWARD_VALUE set (-999)" >&2
   exit 1
 fi
-if [ "${DROP_INFRA_FROM_GROUP:-0}" = "1" ]; then
-  echo "DROP_INFRA_FROM_GROUP=1 conflicts with the sentinel path this arm uses" >&2
-  echo "  the sentinel already zeroes an infra rollout's advantage; pick one" >&2
+if [ -n "${DROP_INFRA_FROM_GROUP:-}" ]; then
+  echo "DROP_INFRA_FROM_GROUP was removed: infra rows are excluded from the GRPO baseline and the" >&2
+  echo "  loss by algorithm.exclude_invalid_rows (default true). Unset it; set that key instead." >&2
   exit 1
 fi
 

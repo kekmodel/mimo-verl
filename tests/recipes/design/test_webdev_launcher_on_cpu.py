@@ -220,7 +220,6 @@ def test_the_runtime_env_carries_what_the_pod_actors_and_hooks_read():
         "WEBDEV_GRADE_MODE",
         "WEBDEV_GRADE_HTTP",
         "WEBDEV_DEBUG_DIR",
-        "DROP_INFRA_FROM_GROUP",
         "TRAJECTORY_TIMEOUT",
         "ENV_SETUP_TIMEOUT",
         "REWARD_TIMEOUT",
@@ -234,7 +233,6 @@ def test_the_runtime_env_carries_what_the_pod_actors_and_hooks_read():
     # numeric and boolean ones therefore have to be quoted at the Hydra level.
     for var in (
         "WEBDEV_GRADE_HTTP",
-        "DROP_INFRA_FROM_GROUP",
         "TRAJECTORY_TIMEOUT",
         "ENV_SETUP_TIMEOUT",
         "REWARD_TIMEOUT",

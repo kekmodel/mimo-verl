@@ -309,6 +309,8 @@ def _run_sync(
     agent_overrides: dict[str, Any],
     environment_overrides: dict[str, Any],
     exec_budget_seconds: float | None = None,
+    exec_budget_agent_types: frozenset[str] | None = None,
+    exec_budget_probe_timeout: int = 30,
 ) -> dict[str, Any]:
     _prepare_swebench_import_path()
     from mimoagent.agents.factory import get_agent_class
@@ -328,7 +330,8 @@ def _run_sync(
         # Blackbox harnesses (claude code, codex, ...) run as one pod command that also contains
         # their model calls, so their time cannot be split into tool vs. generation time; they
         # keep their own ``run_timeout`` and are meant for held-out evaluation, not training.
-        budget = _ExecBudget(exec_budget_seconds) if exec_budget_seconds and agent_type in _MODEL_BACKED_AGENT_TYPES else None
+        budget_types = _MODEL_BACKED_AGENT_TYPES if exec_budget_agent_types is None else exec_budget_agent_types
+        budget = _ExecBudget(exec_budget_seconds) if exec_budget_seconds and agent_type in budget_types else None
         msg_path = _session_agent_msg_path(session)
         if msg_path is not None:
             agent_config["msg_path"] = msg_path
@@ -343,7 +346,7 @@ def _run_sync(
             budget.install(model, environment.env)
         status, result = agent.run(task)
         exec_budget_hit = budget is not None and budget.hit
-        if exec_budget_hit and not budget.env_alive():
+        if exec_budget_hit and not budget.env_alive(timeout=exec_budget_probe_timeout):
             # The pod died, not the policy's rollout: an infra fault, excluded from training.
             raise RuntimeError(f"{agent_type} rollout used its tool-execution budget and the pod is not alive")
         agent_completed = status == agent_cls.IDLE_STATUS
@@ -458,6 +461,8 @@ async def mimoagent_runner(
     agent_overrides = dict(runner_kwargs.pop("agent_overrides", {}) or {})
     environment_overrides = dict(runner_kwargs.pop("environment_overrides", {}) or {})
     exec_budget_seconds = runner_kwargs.pop("exec_budget_seconds", None)
+    exec_budget_agent_types = runner_kwargs.pop("exec_budget_agent_types", None)
+    exec_budget_probe_timeout = int(runner_kwargs.pop("exec_budget_probe_timeout", 30))
     reward_info = await asyncio.to_thread(
         _run_sync,
         raw_prompt=raw_prompt,
@@ -467,6 +472,8 @@ async def mimoagent_runner(
         agent_overrides=agent_overrides,
         environment_overrides=environment_overrides,
         exec_budget_seconds=float(exec_budget_seconds) if exec_budget_seconds else None,
+        exec_budget_agent_types=frozenset(exec_budget_agent_types) if exec_budget_agent_types is not None else None,
+        exec_budget_probe_timeout=exec_budget_probe_timeout,
     )
     reward_info["selected_harness"] = selected_harness
     reward_info["tag_data_source_with_harness"] = os.getenv("MIXED_HARNESS_MODE", "prompt").strip().lower() in {

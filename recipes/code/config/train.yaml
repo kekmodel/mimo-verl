@@ -99,6 +99,11 @@ actor_rollout_ref:
             # leaving the other half for generation, queueing and training pauses.
             runner_kwargs:
               exec_budget_seconds: ${oc.env:EXEC_BUDGET_SECONDS,3000}
+              # Harnesses the budget applies to; null = the model-backed ones whose model calls
+              # the runner sees (blackbox harnesses keep their own run_timeout).
+              exec_budget_agent_types: null
+              # Liveness probe after a budget hit; a dead pod is dropped as infra.
+              exec_budget_probe_timeout: 30
             session_timeout_seconds: ${oc.env:TRAJECTORY_TIMEOUT,7200}
             agent_request_idle_timeout_seconds: ${oc.env:AGENT_REQUEST_IDLE_TIMEOUT,900}
             trajectory_timeout_by_dataset: {}
@@ -215,6 +220,9 @@ algorithm:
     anchor_quantile: 0.3
     min_pass_rate: 0.5
 
+  # Invalid rows (extra_fields is_infra, or the invalid_reward_value sentinel) leave the GRPO
+  # baseline, the loss and the prompt-mean normalization. false reproduces upstream.
+  exclude_invalid_rows: true
   # Rescale GRPO groups that lost rows (infra, dropped sessions) to the full-group factor.
   group_size_correction: true
   # Report Eq. (1): L = -sum_t sg[pi/mu] * M * A * log pi, with mu the rollout engine's

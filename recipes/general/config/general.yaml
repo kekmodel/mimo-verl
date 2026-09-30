@@ -122,6 +122,9 @@ algorithm:
     anchor_quantile: 0.3
     min_pass_rate: 0.5
 
+  # Invalid rows (is_infra, or the invalid_reward_value sentinel) leave the GRPO baseline, the
+  # loss and the prompt-mean normalization. false reproduces upstream.
+  exclude_invalid_rows: true
   # Rescale GRPO groups that lost rows (infra, dropped sessions) to the full-group factor.
   group_size_correction: true
 

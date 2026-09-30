@@ -447,6 +447,7 @@ class GeneralAgentLoop(AgentLoopBase):
         invalid_reward_for_infra: bool = False,
         trajectory_timeout: float = 1800.0,
         exec_budget_seconds: float | None = 300.0,
+        exec_budget_probe_timeout: int = 30,
         env_num_cpus: float = 1,
         env_scheduling_strategy: str = "SPREAD",
         agent_thread_pool_size: int = 64,
@@ -487,6 +488,7 @@ class GeneralAgentLoop(AgentLoopBase):
         # counts inference queueing and sandbox speed -- so it is only a backstop for a hung
         # rollout, set far above what the budgets allow; a rollout it stops is dropped as infra.
         self.exec_budget_seconds = float(exec_budget_seconds) if exec_budget_seconds else None
+        self.exec_budget_probe_timeout = int(exec_budget_probe_timeout)
         self._env_setup_timeout_or_none = self.env_setup_timeout if self.env_setup_timeout > 0 else None
         self._trajectory_timeout_or_none = self.trajectory_timeout if self.trajectory_timeout > 0 else None
         self.max_tool_calls_per_turn = int(max_tool_calls_per_turn) if max_tool_calls_per_turn else None
@@ -947,7 +949,7 @@ class GeneralAgentLoop(AgentLoopBase):
             budget = await env_actor.budget_state.remote()
             metrics["exec_budget_hit"] = float(bool(budget["hit"]))
             metrics["exec_seconds_used"] = float(budget["exec_seconds_used"])
-            if budget["hit"] and not await env_actor.alive.remote():
+            if budget["hit"] and not await env_actor.alive.remote(self.exec_budget_probe_timeout):
                 # The pod died, not the policy's rollout: infra, excluded from training.
                 return self._failure_output(
                     "exec_budget",

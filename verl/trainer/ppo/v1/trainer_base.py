@@ -378,6 +378,7 @@ class PPOTrainer(ABC):
 
     def __init__(self, config: DictConfig):
         self.config = config
+        advantage_fixes.check_policy_loss_config(config)
         self.use_critic = need_critic(self.config)
         self.use_reference_policy = need_reference_policy(self.config)
         self.use_teacher_policy = need_teacher_policy(self.config)
@@ -2015,14 +2016,33 @@ class PPOTrainer(ABC):
         else:
             data.batch["token_level_rewards"] = data.batch["token_level_scores"]
 
-        # Rows that are not samples of the policy (infra failures). They are excluded from the
-        # GRPO baseline, the loss, and the prompt-mean normalization below.
+        # Rows that are not samples of the policy (infra failures, sentinel scores). With
+        # algorithm.exclude_invalid_rows they are excluded from the GRPO baseline, the loss and
+        # the prompt-mean normalization below. Off reproduces upstream: only sentinel rows leave
+        # the baseline (inside compute_grpo_outcome_advantage) and keep their tokens in the
+        # normalization; rows flagged only by is_infra train as ordinary rows.
+        invalid_reward_value = self.config.algorithm.get("invalid_reward_value", None)
+        exclude_invalid = bool(self.config.algorithm.get("exclude_invalid_rows", True))
         invalid = advantage_fixes.invalid_rows(
-            extra_fields_list,
+            extra_fields_list if exclude_invalid else None,
             data.batch["token_level_rewards"].sum(dim=-1),
-            self.config.algorithm.get("invalid_reward_value", None),
+            invalid_reward_value,
         )
         metrics["training/invalid_rows"] = float(invalid.sum().item())
+
+        group_suffixes = None
+        if bool(self.config.algorithm.get("group_advantage_by_harness", False)):
+            harness_values = [str(tag.get("agent_type") or "unknown") for tag in batch.tags]
+            if any(value == "unknown" for value in harness_values):
+                raise RuntimeError(
+                    "algorithm.group_advantage_by_harness=true requires agent_type on every trajectory tag"
+                )
+            group_suffixes = np.asarray(harness_values, dtype=object)
+        # GRPO group ids exactly as compute_advantage_for_multi_trajectories forms them; every
+        # group-relative step below (length penalty, fill, correction) uses the same ids.
+        group_ids = data.non_tensor_batch["uid"]
+        if group_suffixes is not None:
+            group_ids = np.asarray([f"{u}::{s}" for u, s in zip(group_ids, group_suffixes, strict=True)], dtype=object)
         if extra_fields_list is not None:
             _hits = [advantage_fixes.exec_budget_hit(ef) for ef in extra_fields_list]
             metrics["rollout/exec_budget_hit_rate"] = float(np.mean(_hits)) if _hits else 0.0
@@ -2050,7 +2070,7 @@ class PPOTrainer(ABC):
             data.batch["token_level_rewards"], lp_metrics = advantage_fixes.apply_group_length_penalty(
                 data.batch["token_level_rewards"],
                 data.batch["response_mask"],
-                data.non_tensor_batch["uid"],
+                group_ids,
                 session_keys,
                 invalid,
                 signals,
@@ -2089,25 +2109,14 @@ class PPOTrainer(ABC):
         # Invalid rows take their group's valid mean so the GRPO baseline is the valid mean.
         # (Replaces the old DROP_INFRA_FROM_GROUP uid reassignment, which turned every invalid
         # row into a pseudo-prompt counted by the prompt-mean normalization.)
-        group_suffixes = None
-        if bool(self.config.algorithm.get("group_advantage_by_harness", False)):
-            harness_values = [str(tag.get("agent_type") or "unknown") for tag in batch.tags]
-            if any(value == "unknown" for value in harness_values):
-                raise RuntimeError(
-                    "algorithm.group_advantage_by_harness=true requires agent_type on every trajectory tag"
-                )
-            group_suffixes = np.asarray(harness_values, dtype=object)
-        # GRPO group ids exactly as compute_advantage_for_multi_trajectories forms them.
-        group_ids = data.non_tensor_batch["uid"]
-        if group_suffixes is not None:
-            group_ids = np.asarray([f"{u}::{s}" for u, s in zip(group_ids, group_suffixes, strict=True)], dtype=object)
-        data.batch["token_level_rewards"] = advantage_fixes.fill_invalid_scores(
-            data.batch["token_level_rewards"],
-            data.batch["response_mask"],
-            group_ids,
-            invalid,
-            batch.keys,
-        )
+        if exclude_invalid:
+            data.batch["token_level_rewards"] = advantage_fixes.fill_invalid_scores(
+                data.batch["token_level_rewards"],
+                data.batch["response_mask"],
+                group_ids,
+                invalid,
+                batch.keys,
+            )
 
         # 3. compute advantages
         data = compute_advantage_for_multi_trajectories(
@@ -2132,12 +2141,13 @@ class PPOTrainer(ABC):
                 n_ref=int(self.config.actor_rollout_ref.rollout.n),
             )
             metrics.update(gs_metrics)
-        data.batch["advantages"], data.batch["response_mask"], _masked = advantage_fixes.mask_invalid_rows(
-            data.batch["advantages"], data.batch["response_mask"], invalid
-        )
-        if _masked:
-            response_mask = response_to_nested(data.batch["response_mask"], response_mask)
-            response_mask_edited = True
+        if exclude_invalid:
+            data.batch["advantages"], data.batch["response_mask"], _masked = advantage_fixes.mask_invalid_rows(
+                data.batch["advantages"], data.batch["response_mask"], invalid
+            )
+            if _masked:
+                response_mask = response_to_nested(data.batch["response_mask"], response_mask)
+                response_mask_edited = True
         if "returns" in data.batch:
             data.batch["returns"] = data.batch["advantages"].clone()
 

@@ -28,10 +28,9 @@ if [ "${TRAIN_BATCH_SIZE}" != "${PPO_MINI_BATCH_SIZE}" ]; then
   exit 1
 fi
 
-if [ "${INVALID_REWARD_FOR_INFRA:-false}" = "true" ] && [ "${DROP_INFRA_FROM_GROUP:-0}" = "1" ]; then
-  echo "INVALID_REWARD_FOR_INFRA=true conflicts with DROP_INFRA_FROM_GROUP=1" >&2
-  echo "  ARVO uses DROP_INFRA_FROM_GROUP (plain 0.0, uid reassignment)" >&2
-  echo "  pick one strategy, not both" >&2
+if [ -n "${DROP_INFRA_FROM_GROUP:-}" ]; then
+  echo "DROP_INFRA_FROM_GROUP was removed: infra rows are excluded from the GRPO baseline and the" >&2
+  echo "  loss by algorithm.exclude_invalid_rows (default true). Unset it; set that key instead." >&2
   exit 1
 fi
 
@@ -84,7 +83,6 @@ RAY_ENV=(
   +ray_kwargs.ray_init.runtime_env.env_vars.AGENT_DEBUG_DIR="${TRAJ_DUMP_DIR}"
   +ray_kwargs.ray_init.runtime_env.env_vars.TENSORBOARD_DIR="${TENSORBOARD_DIR}"
   +ray_kwargs.ray_init.runtime_env.env_vars.CUDA_DEVICE_MAX_CONNECTIONS="\"1\""
-  +ray_kwargs.ray_init.runtime_env.env_vars.DROP_INFRA_FROM_GROUP="\"${DROP_INFRA_FROM_GROUP}\""
   +ray_kwargs.ray_init.runtime_env.env_vars.TRAJECTORY_TIMEOUT="\"${TRAJECTORY_TIMEOUT}\""
   +ray_kwargs.ray_init.runtime_env.env_vars.ENV_SETUP_TIMEOUT="\"${ENV_SETUP_TIMEOUT}\""
   +ray_kwargs.ray_init.runtime_env.env_vars.ENV_NUM_CPUS="\"${ENV_NUM_CPUS}\""

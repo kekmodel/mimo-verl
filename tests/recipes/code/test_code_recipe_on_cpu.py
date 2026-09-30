@@ -188,6 +188,24 @@ def test_resolved_config_validator_rejects_hidden_override(tmp_path):
         validate_resolved_config._check(config, "trainer.v1.trainer_mode", "colocate_async")
 
 
+@pytest.mark.parametrize(
+    ("bypass", "loss_mode", "ok"),
+    [(True, "bypass_mode", True), (False, "vanilla", True), (True, "vanilla", False), (False, "bypass_mode", False)],
+)
+def test_resolved_config_validator_checks_policy_loss_agreement(bypass, loss_mode, ok):
+    from recipes.code import validate_resolved_config
+
+    config = {
+        "algorithm": {"rollout_correction": {"bypass_mode": bypass}},
+        "actor_rollout_ref": {"actor": {"policy_loss": {"loss_mode": loss_mode}}, "rollout": {"calculate_log_probs": True}},
+    }
+    if ok:
+        validate_resolved_config._check_policy_loss(config)
+    else:
+        with pytest.raises(ValueError, match="disagree"):
+            validate_resolved_config._check_policy_loss(config)
+
+
 def test_harness_helpers_are_importable_without_gateway_runtime():
     from recipes.code.mimoagent_runner import _build_model, _extract_task, _load_config
 
