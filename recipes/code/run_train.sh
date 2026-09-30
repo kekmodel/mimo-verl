@@ -142,8 +142,12 @@ WORKER_LD=""
 # GAR with an LLM API grader: GAR_ENABLE=true GAR_GRADER_URL=... GAR_GRADER_MODEL=...
 # GAR_GRADER_API=chat|responses|anthropic. The key is read on the trainer node from
 # GAR_GRADER_API_KEY (that process's environment) or algorithm.gar.grader.kwargs.api_key_file.
-GAR_ENABLE="${GAR_ENABLE:-false}"
-if [ "${GAR_ENABLE}" = "true" ] || [ "${GAR_ENABLE}" = "True" ]; then
+case "$(printf '%s' "${GAR_ENABLE:-false}" | tr '[:upper:]' '[:lower:]')" in
+  true|1|yes|on) GAR_ENABLE=true ;;
+  false|0|no|off|"") GAR_ENABLE=false ;;
+  *) echo "GAR_ENABLE must be true or false, got ${GAR_ENABLE}" >&2; exit 1 ;;
+esac
+if [ "${GAR_ENABLE}" = "true" ]; then
   if [ -z "${GAR_GRADER_URL:-}" ] || [ -z "${GAR_GRADER_MODEL:-}" ]; then
     echo "GAR_ENABLE=true needs GAR_GRADER_URL and GAR_GRADER_MODEL" >&2
     exit 1

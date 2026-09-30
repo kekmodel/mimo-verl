@@ -251,12 +251,17 @@ algorithm:
         api: chat  # chat (OpenAI Chat Completions) | responses (OpenAI Responses) | anthropic (Messages)
         model: ""
         api_key_env: GAR_GRADER_API_KEY
-        api_key_file: null
+        api_key_file: null  # recommended: the trainer is a Ray actor and may not see the shell's env
+        auth_header: null  # null = bearer (chat/responses) or x-api-key (anthropic); api-key for Azure
         max_output_tokens: 4096
         chat_max_tokens_field: max_completion_tokens
         timeout: 600
         max_retries: 3
         max_workers: 16
+        # Grading runs inside the training step: every group not graded by then falls back.
+        deadline_seconds: 1800
+        max_prompt_chars: 200000
+        max_failed_candidates: 4
   # Report Eq. (1): L = -sum_t sg[pi/mu] * M * A * log pi, with mu the rollout engine's
   # per-token probability (not recomputed, also across partial-rollout weight updates) and
   # M = 0 outside [0.2, 5.0] (IcePop-style mask; masked tokens stay in the normalizer).
