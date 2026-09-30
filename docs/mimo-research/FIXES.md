@@ -60,7 +60,7 @@ git submodule update --init third_party/mimoagent-osr third_party/uni_agent
 
 ## 하지 않은 것
 
-- GRS(오프라인 과제별 루브릭 + 채점 에이전트, Code 데이터에 루브릭 없음), GAR(채점 모델 미공개), Sample Mixer(도메인 혼합, 도메인별로 따로 학습하면 불필요), 엔트로피 기반 IS 경계 조절(규칙 미공개), overlong 규칙(상수 미공개)
+- GRS(오프라인 과제별 루브릭 + 채점 에이전트, Code 데이터에 루브릭 없음), GAR(규칙·상수는 GAGAR 논문 arXiv 2609.32577에 공개, SFT 채점 모델만 미공개. 공개 모델 채점기로 구현 가능), Sample Mixer(도메인 혼합, 도메인별로 따로 학습하면 불필요), 엔트로피 기반 IS 경계 조절(규칙 미공개), overlong 규칙(상수 미공개)
 - webdev 무효 행 표시 (도메인 범위 밖)
 - arvo·design 에이전트 루프에는 도구 실행 예산을 넣지 않음 (도메인 범위 밖, General과 같은 방식으로 옮기면 됨)
 

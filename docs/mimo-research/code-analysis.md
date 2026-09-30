@@ -56,8 +56,10 @@
 ## 5. 공개판에 없는 것
 
 - GAR (그룹 비교 grader, λ 재배분, hack → reward 0): 검색어 redistribut / groupwise / confirmed hack / stage_credit / select_* 모두 없음. 대시보드의 `stage_credit_group/*`, `select_*`, `tq_adv_*` 태그를 내보내는 코드도 없음
+  - 이후 GAGAR 논문(arXiv 2609.32577)이 티어 규칙, factor 값, λ 상한 1.5, 비이진 보상 처리까지 공개함 (`mimo-v2.6-rl-algorithm.md` 14장). 공개되지 않은 것은 SFT 채점 모델뿐이라, 채점기를 공개 모델로 대신하면 논문대로 구현 가능. 붙일 자리는 webdev 그룹 채점 훅(11장)과 같은 구조
 - Sample Mixer (소스별 할당량, 이월, deficit 스케줄링): 레시피가 단일 도메인이라 없음
 - 엔트로피 기반 4방향 IS 경계: 없음. 공개 레시피는 `use_rollout_log_probs: true` + PPO clip 0.2 / dual-clip c 3.0
+  - `mimo-fixes`에서는 리포트 식 (1)대로 REINFORCE + 고정 [0.2, 5.0] 마스크(verl bypass_mode)로 바꿈. 엔트로피 조절 규칙은 여전히 미공개
 - overlong, toxic_reasoning 등 원본 규칙
 
 ## 6. 발견한 결함
