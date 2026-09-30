@@ -74,31 +74,50 @@ class _ExecBudget:
             raise LimitsExceeded(f"tool-execution budget of {self.seconds:.0f}s used up")
 
     def install(self, model, env) -> None:
-        query, execute = model.query, env.execute
+        """Gate the model and the pod: query and every pod operation check the budget first;
+        pod operations (commands and file copies the agent's tools make) are timed."""
+        self._model, self._env = model, env
+        self._originals = {"query": model.query}
+        for name in ("execute", "copy_to", "copy_out"):
+            if callable(getattr(env, name, None)):
+                self._originals[name] = getattr(env, name)
+        query = self._originals["query"]
 
         def gated_query(*args, **kwargs):
             self._check()
             return query(*args, **kwargs)
 
-        def gated_execute(*args, **kwargs):
-            self._check()
-            t0 = time.monotonic()
-            try:
-                return execute(*args, **kwargs)
-            finally:
-                with self._lock:
-                    self.used += time.monotonic() - t0
+        def timed(fn):
+            def gated(*args, **kwargs):
+                self._check()
+                t0 = time.monotonic()
+                try:
+                    return fn(*args, **kwargs)
+                finally:
+                    with self._lock:
+                        self.used += time.monotonic() - t0
+
+            return gated
 
         model.query = gated_query
-        env.execute = gated_execute
-        self._ungated_execute = execute
+        for name, fn in self._originals.items():
+            if name != "query":
+                setattr(env, name, timed(fn))
+
+    def uninstall(self) -> None:
+        """Restore the ungated model and pod, so the liveness probe and grading (which use the
+        same ``env``) run normally once the agent has stopped."""
+        self._model.query = self._originals["query"]
+        for name, fn in self._originals.items():
+            if name != "query":
+                setattr(self._env, name, fn)
 
     def env_alive(self, timeout: int = 30) -> bool:
         try:
-            res = self._ungated_execute("true", timeout=timeout)
+            res = self._env.execute("true", timeout=timeout)
         except Exception:  # noqa: BLE001 - any failure to reach the pod means it is not alive
             return False
-        return res.get("returncode") == 0 or res.get("reason") == "budget_exhausted"
+        return res.get("returncode") == 0
 
 
 @dataclass
@@ -345,7 +364,11 @@ def _run_sync(
         agent = agent_cls(model, environment.env, **agent_config)
         if budget is not None:
             budget.install(model, environment.env)
-        status, result = agent.run(task)
+        try:
+            status, result = agent.run(task)
+        finally:
+            if budget is not None:
+                budget.uninstall()
         exec_budget_hit = budget is not None and budget.hit
         if exec_budget_hit and not budget.env_alive(timeout=exec_budget_probe_timeout):
             # The pod died, not the policy's rollout: an infra fault, excluded from training.

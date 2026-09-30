@@ -44,6 +44,10 @@ class _Env:
         time.sleep(0.05)
         return {"output": "", "returncode": 0, "reason": "ok"}
 
+    def copy_to(self, src, dest, **kwargs):
+        self.commands.append(f"copy {src}")
+        time.sleep(0.05)
+
 
 def test_model_time_does_not_count_tool_time_does():
     model, env = _Model(), _Env()
@@ -61,4 +65,21 @@ def test_model_time_does_not_count_tool_time_does():
     with pytest.raises(LimitsExceeded):
         model.query([])
     assert budget.hit and env.commands == ["a", "b", "c"]  # frozen command never reached the pod
-    assert budget.env_alive() and env.commands[-1] == "true"  # probe bypasses the freeze
+    with pytest.raises(LimitsExceeded):
+        env.copy_to("f", "/w/f")  # file writes are gated too
+    # After the agent stops the runner uninstalls the gate: the probe and grading (which use the
+    # same env object) run normally and are not charged.
+    budget.uninstall()
+    used = budget.used
+    assert budget.env_alive() and env.commands[-1] == "true"
+    env.execute("git diff")
+    model.query([])
+    assert env.commands[-1] == "git diff" and budget.used == used
+
+
+def test_file_copies_are_charged():
+    env = _Env()
+    budget = _ExecBudget(10.0)
+    budget.install(_Model(), env)
+    env.copy_to("f", "/w/f")
+    assert budget.used >= 0.05
