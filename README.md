@@ -24,8 +24,8 @@
 >
 > | 키 | 기본값 (Code / General) | 원본 동작으로 | 바꾸는 것 |
 > |---|---|---|---|
-> | `algorithm.exclude_invalid_rows` | `true` | `false` | infra·sentinel 행을 GRPO baseline, loss mask, prompt-mean 분모에서 모두 제외 |
-> | `algorithm.group_size_correction` | `true` | `false` | 유효 행이 줄어든 그룹을 (1−1/n)/(1−1/n_valid)로 보정 (= RLOO × (1−1/n)) |
+> | `algorithm.exclude_invalid_rows` | `true` | `false` (sentinel `invalid_reward_value`와 함께는 불가) | infra·sentinel 세션을 GRPO baseline, loss mask, prompt-mean 분모에서 모두 제외. 원본의 sentinel 처리는 실제로 실행되지 않아서, 끄고 sentinel을 쓰면 −999가 보상으로 학습됨 → 시작 시 거부 |
+> | `algorithm.group_size_correction` | `true` | `false` | 유효 세션이 줄어든 그룹을 (1−1/n)/(1−1/n_valid)로 보정 (= RLOO × (1−1/n)). 유효 세션이 1개인 그룹은 0 (baseline 없음). std 정규화를 켜면 적용 안 함 |
 > | `algorithm.length_penalty.*` | enable, X 0.2, p30, 통과율 > 0.5, γ 1.5 | `enable=false` | 그룹 상대 길이 페널티 (리포트 식 4) |
 > | `algorithm.tool_call_error_penalty.{enable,strategy,penalty_value}` | `true`, `adv_signed`, `2.0` | `strategy=monitor` | tool call 오류 구간 페널티 (리포트 식 5) |
 > | `algorithm.tool_call_error_penalty.mask_source` | `field` / `spans` | – | 오류 마스크 출처: uni-agent 텐서 또는 턴 구간 메타데이터 |
@@ -41,7 +41,7 @@
 > | `algorithm.group_advantage_by_harness` | `false` | 같음 | 켜면 GRPO·GAR·길이 페널티가 모두 `uid::harness` 그룹 기준 |
 >
 > **GAR 채점기 API** (Code): `GAR_ENABLE=true GAR_GRADER_URL=<base 또는 endpoint URL> GAR_GRADER_MODEL=<모델> GAR_GRADER_API=chat|responses|anthropic`
-> (OpenAI Chat Completions / OpenAI Responses / Anthropic Messages). 키는 설정에 넣지 않고 트레이너 노드에서 읽습니다: 트레이너 프로세스의 `GAR_GRADER_API_KEY` 또는 `algorithm.gar.grader.kwargs.api_key_file`. 켜면 러너가 과제 설명을 결과에 실어 보냅니다. 채점기는 패치·테스트 출력·최종 메시지로 판단하고, 논문 채점기처럼 레포에 들어가 테스트를 돌리지는 않습니다.
+> (OpenAI Chat Completions / OpenAI Responses / Anthropic Messages). 키는 설정에 넣지 않습니다. **`algorithm.gar.grader.kwargs.api_key_file=<트레이너 노드의 키 파일>`을 권장**합니다: 트레이너는 Ray 액터라 실행 셸의 환경 변수(`GAR_GRADER_API_KEY`)를 못 볼 수 있습니다 (키가 비면 시작 시 경고, 모든 그룹이 fallback). Azure는 `auth_header=api-key`. 켜면 러너가 과제 설명을 결과에 실어 보냅니다. 채점기는 패치·테스트 출력·최종 메시지로 판단하고, 논문 채점기처럼 레포에 들어가 테스트를 돌리지는 않습니다. 채점은 학습 스텝 안에서 돌며 `deadline_seconds`(1800)를 넘긴 그룹은 fallback. `gar/groups_fallback`이 높으면 policy가 채점기 출력을 깨뜨리는 쪽으로 학습하고 있을 수 있으니 확인하세요.
 >
 > `DROP_INFRA_FROM_GROUP`은 제거됐습니다 (설정하면 실행 스크립트가 멈추고 대신 쓸 키를 알려 줌).
 >

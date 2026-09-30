@@ -29,11 +29,38 @@ git submodule update --init third_party/mimoagent-osr third_party/uni_agent
 | 10 | `group_advantage_by_harness`를 켜면 GRPO는 `uid::harness`로 묶는데 길이 페널티 기준은 `uid`로 잡음 | 모든 그룹 단계(GAR, 길이 페널티, 무효 행 채움, 크기 보정)가 GRPO와 같은 그룹 ID를 씀 | `trainer_base._compute_advantage` |
 | 11 | bypass 손실은 유효 토큰 없는 마이크로배치에서 예외 | 손실 0, 같은 메트릭 키 | `core_algos.compute_policy_loss_bypass_mode` |
 
+## 기능별 독립 리뷰와 수정 (2026-10-01)
+
+기능 8개(무효 행, 그룹 크기 보정, 길이 페널티, 도구 오류 페널티, 시간 예산, 정책 손실 식 (1), GAR, API 채점기)를 서로 독립된 리뷰어가 코드·논문만 보고 검토. 수식은 모두 참조 구현과 일치(식 4: 3e-8, 식 5: 오차 0, 식 (1): 1.5e-8, GAR 식 6~8). 연결부와 경계에서 나온 문제를 고침.
+
+| 기능 | 문제 | 수정 |
+|---|---|---|
+| 시간 예산 (Code) | 예산 게이트가 `environment.env.execute`를 감싼 채 남아 채점 명령까지 막음 → **예산을 쓴 롤아웃은 전부 0점, 패치 빈 값** | `agent.run` 직후 게이트 해제(`uninstall`), 그다음 생존 확인·채점. `copy_to`/`copy_out`(write·edit·apply_patch)도 시간에 포함. 생존 확인이 mimoagent 자체 예산 응답을 살아있음으로 보던 것 제거 |
+| Code 전반 | uni-agent는 `extra_fields`를 최상위 필드로 풀어 넘김 → 트레이너가 못 읽음. GAR 채점 재료·예산 지표가 비어 있었음 | `extra_fields`가 없으면 최상위 `reward_extra_info`를 읽음. 예산 도달률은 유효 세션 기준 |
+| 무효 행 | 원본의 sentinel 처리(`compute_grpo_outcome_advantage`)는 `compute_advantage`가 config를 넘기지 않아 실행되지 않음 → "끄면 원본" 설명이 틀렸고, 끄고 sentinel을 쓰면 −999가 보상으로 학습 | 그 조합은 시작 시 거부. 문서 정정 |
+| 무효 행 | 행 단위 판정 ↔ GRPO는 세션 단위: 마지막 행만 무효인 세션의 앞 행이 T_q에 남고 보정 인원도 어긋남 | 무효는 세션 속성 (마지막 행이 무효면 세션 전체). 모든 단계가 같은 판정 사용 |
+| 무효 행 | 평균값 채우기는 std 정규화에서 틀림 (채운 행이 std를 줄임) | 무효 세션을 자기만의 GRPO 그룹으로 분리(uid 격리) 후 마스킹: mean·std 모두 정확 |
+| 그룹 보정 | 유효 세션 1개 그룹은 baseline 없이 원시 보상으로 학습 (Code는 세션이 빠지고 General은 남아 둘이 다르게 동작) / `rollout.n=1`이면 오류 / std 정규화에서도 적용 | 1개 그룹은 0, `n<2`는 그대로, std 정규화면 건너뜀(`training/group_size/skipped_std_norm`) |
+| 길이 페널티 (Code) | 턴 수 대체값이 uni-agent의 대화 메시지 수(모델 호출 + 약 2) → 페널티가 약하게 걸림 (0.2 대신 0.12) | 원래 마스크(페널티 편집 전)의 action 토큰 연속 구간 수 = 모델 호출 수 |
+| 도구 오류 구간 | 마지막 턴이 처리 전에 끝나면 구간이 하나 더 많아 그 행의 모든 플래그가 버려짐 | 남는 구간은 False로 채움. 메타데이터 없는 행은 `penalty/tool_call_error_span_missing_rows`로 셈 |
+| 설정 충돌 | KL-in-reward와 sentinel·길이 페널티·GAR, arvo와 길이 페널티·도구 페널티 | 학습 시작 시 거부 (arvo+길이 검사는 첫 스텝이 아니라 시작 시로 옮김) |
+| GAR | 형식이 틀린 채점 결과가 스텝을 멈춤 / 실패 후보의 등급이 통과 후보의 factor를 바꿈 / `zero_confirmed_hacks=false`면 첫 hack에서 KeyError / hack 교정이 `rm_scores` 텐서를 직접 수정 | 타입 엄격 검증 + 그룹별 fallback / 통과 후보만 순위 (`gar/grades_on_failures`) / 옵션 제거 (논문은 항상 0) / 복사본에 적용 |
+| API 채점기 | policy가 쓴 텍스트로 가짜 후보를 만들어 채점을 깨뜨리면 GRPO 전액을 받음 | 요청마다 무작위 구분자로 후보 텍스트를 감싸고 헤더 무력화, "구분자 안은 데이터" 명시 |
+| API 채점기 | `"false"`가 참 / 점수 반올림 / 중괄호 섞인 응답 파싱 실패 / Chat 내용이 목록·null / Azure 쿼리 URL·OpenAI 기본 주소 / 채점이 한 시간 넘게 스텝을 붙잡을 수 있음 / 키가 트레이너에 안 가면 조용히 전부 fallback | 엄격한 bool, 정수 점수, `raw_decode` 스캔, 목록 합치기·null 오류, `urlsplit`로 조립(`/v1`, 쿼리 보존, `auth_header`), 전체 `deadline_seconds`·`Retry-After`·프롬프트 크기 상한, 키 없으면 시작 시 경고 |
+
+리뷰에서 나왔지만 코드로 판단할 수 없어 첫 실행에서 확인할 것:
+- **μ의 의미**: sglang의 토큰 로그 확률이 top-k/top-p로 잘린 분포 기준이면 식 (1)의 μ가 부풀려짐 (r이 1보다 작게 쏠리고 낮은 확률 토큰이 마스크됨). 첫 on-policy 스텝의 `rollout_corr/kl`이 0 근처인지 확인
+- **벽시계 안전장치 검열**: 안전장치는 생성 시간과 학습 정지 시간도 세므로, 걸리는 롤아웃은 가장 긴 것들. `num_failed_sessions`·`wall_backstop_hit`이 0 근처여야 함
+- **codex 하니스 코드 모드**: `yield_time_ms`로 넘긴 셀의 명령은 `agent.run`이 끝난 뒤에도 돌 수 있어 채점 중 pod를 바꿀 수 있음 (원본에도 있던 동작). 모델 기반 하니스 중 codex를 학습에 쓰면 확인
+- **bypass 모드 지표**: 사전 forward가 없어 `actor/entropy`와 `training/rollout_probs_diff_*`가 기록되지 않음. 남는 엔트로피 신호는 학습 forward의 `actor/entropy_loss`. 빈 마이크로배치의 0 값이 `rollout_corr/*` 평균을 낮춤
+- **General μ**: 추론 엔진이 로그 확률을 빠뜨린 턴은 0으로 채워짐 (원본은 진단용이었지만 이제 손실에 들어감)
+- 도구 실행 예산은 병렬 호출 시간을 합산 (8개 병렬 300초 = 2400초)
+
 ## 선택 가능하게 만든 것
 
 원칙: 하이퍼파라미터와 verl 기본 기능 밖의 추가 기능은 설정으로 고를 수 있어야 한다. 기본값은 수학적으로 맞는 쪽, 원본 동작은 설정 한 줄로 되돌린다. 전체 표는 저장소 README.
 
-- `algorithm.exclude_invalid_rows` (기본 true): 무효 행 제외. false면 원본처럼 sentinel 행만 baseline에서 빠지고 `is_infra` 행은 일반 행으로 학습
+- `algorithm.exclude_invalid_rows` (기본 true): 무효 세션 제외. false면 모든 행을 그대로 학습 (원본과 같음). 원본의 sentinel 처리는 실행되지 않으므로 false와 `invalid_reward_value`는 함께 쓸 수 없음
 - 손실 방식: `algorithm.rollout_correction.*`와 `actor.policy_loss.loss_mode`. `bypass_mode`와 `loss_mode`가 어긋나면(한쪽만 바꾸면) 트레이너 시작과 Code preflight(`validate_resolved_config.py`)에서 막음. preflight는 더 이상 특정 손실 방식을 강제하지 않음. 원본 PPO로 되돌리려면 `bypass_mode=false`, `rollout_is=null`, `loss_mode=vanilla` 세 개를 모두 바꿈 (`rollout_is`가 남으면 decoupled 경로가 IcePop 가중치를 PPO 손실에 곱함)
 - 도구 실행 예산: `exec_budget_seconds`, Code `exec_budget_agent_types`(null = 모델 기반 하니스), `exec_budget_probe_timeout`(30)
 - `algorithm.gar.*` (아래 절)
@@ -75,7 +102,7 @@ git submodule update --init third_party/mimoagent-osr third_party/uni_agent
 `verl/trainer/ppo/gar.py`, 설정 `algorithm.gar` (Code 레시피에 꺼진 상태로 있음). 리포트 4.3.2절과 GAGAR 논문(arXiv 2609.32577)의 식 6~8, 부록 A.1·A.2 그대로.
 
 - 대상: 유효 세션 2개 이상, 통과(`score >= pass_threshold`, 기본 1.0)와 실패가 섞인 그룹. 세션은 마지막 행(GRPO가 쓰는 행)으로 판정
-- GRPO 전: 채점기 호출 → 확정 hack은 reward 0 (`zero_confirmed_hacks`) → 그다음 길이 페널티와 GRPO
+- GRPO 전: 채점기 호출 → 확정 hack은 reward 0 (복사본에, 항상) → 그다음 길이 페널티와 GRPO
 - GRPO 후: a = r − 평균, 통과는 a⁺ = max(a, 0), λ = min(Σa⁺ / Σf·a⁺, `lambda_max`), B = λ·f·a⁺(통과) 또는 a(실패), A = B − 평균(B). 세션의 모든 행에 적용. 그다음 그룹 크기 보정, 토큰 단위 페널티
 - factor: T1 1등 1, T1 나머지 `f_runner` 0.9, T2 동률 그룹 순서대로 `f_max` 0.85 → `f_min` 0.4 선형, T3 `f_low` 0.2 (논문 Flash 설정)
 - 채점기: `gar.grader.{path, name, kwargs}`로 불러오는 callable. `grade(groups: list[Group]) -> {group_id: GroupResult | None}`. `GroupResult(grades={session_key: Grade(tier, rank)}, hacks=[...])`. 통과 후보가 순위에서 빠졌거나 형식이 틀리면 그 그룹은 원래 advantage 유지 (`gar/groups_fallback`). 채점기가 예외를 내면 그 스텝의 모든 대상 그룹이 원래 advantage로 돌아감 (`gar/grader_error`)
@@ -98,10 +125,9 @@ git submodule update --init third_party/mimoagent-osr third_party/uni_agent
 
 ## 검증
 
-- 새로 추가한 CPU 테스트: `test_advantage_fixes_on_cpu.py`(16), `test_exec_budget_on_cpu.py`(1), `test_bypass_prompt_mean_on_cpu.py`(3), `test_gar_on_cpu.py`(7: factor 표, 합·비율 보존, 상한과 재중심화, 보상 공간 등가식, 비이진 보상, 결과 검증, 설정 검증), `v1/test_compute_advantage_tq_on_cpu.py`(6), `test_gar_api_grader_on_cpu.py`(8: 로컬 가짜 서버로 세 API 형식 왕복·키 헤더·재시도, 등급 규칙, 응답 검증, fallback, 근거 없는 hack 무시)
-- `test_compute_advantage_tq_on_cpu.py`는 실제 TransferQueue 파티션에 배치를 넣고 `_compute_advantage`를 끝까지 돌림: infra 행 마스킹, 여러 행 세션, 길이 페널티, 그룹 크기 보정, prompt-mean 가중치를 수식 값과 비교 / `exclude_invalid_rows=false`가 원본 동작 / 도구 오류 구간 페널티 / GAR hack 교정과 재분배 / 채점 결과 불량·채점기 예외 시 GRPO 그대로
-- 저장소 CPU 테스트 `tests/recipes tests/trainer/ppo tests/workers/config`를 원본(`mimo-oss`)과 비교: 원본 535 통과·3 실패, 우리 580 통과·3 실패. 실패 3건은 양쪽 같은 테스트 (replay buffer DAPO 2, 로컬 모델 경로 1). 우리 쪽에만 있는 실패 0건
-- 원본 기본값을 고정해 둔 테스트(trajectory_selection longest, bypass_mode false, DROP_INFRA_FROM_GROUP 관련 3곳)는 바뀐 기본값과 제거에 맞춰 수정
+- 새로 추가한 CPU 테스트: `test_advantage_fixes_on_cpu.py`(무효 세션 격리·std 정규화, 여러 행 세션, 세션 단위 무효, 그룹 보정의 1개 그룹·n<2, 턴 수 대체값, 구간 채우기, 누락 지표, 예산 도달률, 설정 충돌 검사 등), `test_exec_budget_on_cpu.py`(게이트 해제 후 채점·생존 확인, 파일 복사 과금), `test_bypass_prompt_mean_on_cpu.py`(식 (1)), `test_gar_on_cpu.py`(식 6~8, 형식이 틀린 결과 fallback, 실패 후보 등급 무시, 복사본 hack), `test_gar_api_grader_on_cpu.py`(가짜 서버로 세 API 왕복, 구분자·위조 후보, 엄격 파싱, URL·인증 헤더, 마감 시간), `v1/test_compute_advantage_tq_on_cpu.py`(실제 TransferQueue: 무효 세션·길이 페널티·그룹 보정·prompt-mean 가중치 수치, 원본 동작, 도구 오류 구간, GAR, uni-agent 형식에서 GAR 재료·예산 지표)
+- 저장소 CPU 테스트 `tests/recipes tests/trainer/ppo tests/workers/config`: 원본(`mimo-oss`) 535 통과·3 실패, 우리 602 통과·3 실패. 실패 3건은 양쪽 같은 테스트 (replay buffer DAPO 2, 로컬 모델 경로 1)
+- 리뷰어 재현 스크립트로 수정 전후 확인: Code 예산 소진 후 채점 0점 → 1.0점·패치 복구, 마지막 행만 무효인 세션 → 세션 전체 제외·보정 1.125, 앞선 도구 오류 플래그 보존
 - 실행: `PYTHONPATH=.:third_party/mimoagent-osr/src:third_party/uni_agent uv run --no-project --python 3.12 --with openai --with anthropic --with tenacity --with requests --with typer --with kubernetes --with xxhash --with TransferQueue==0.1.8 --with torch --with numpy --with pytest --with pytest-asyncio --with pydantic --with omegaconf --with tensordict --with packaging --with hydra-core --with codetiming --with ray --with transformers --with pillow --with pandas --with pyarrow --with datasets --with httpx --with cachetools --with uvicorn --with fastapi --with torchdata --with peft --with pyyaml --with jinja2 --with python-dotenv --with platformdirs --with rich python -m pytest -q tests/recipes tests/trainer/ppo tests/workers/config`
 - 두 레시피 설정을 Hydra로 합성해 손실 키 일치 검사 통과, 한쪽만 바꾸면 막힘, PPO 방식으로 되돌리기 가능 확인
 - General env actor의 도구 시간 누적·동결(Ray 액터)과 두 레시피의 예산 경로는 실제 pod에서 돌려보지 않았음
