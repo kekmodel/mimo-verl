@@ -23,6 +23,10 @@ if [ -z "${GA_JUDGE_KEY_FILE:-}" ] && [ -z "${GA_JUDGE_KEY:-}" ]; then
   echo "set GA_JUDGE_KEY_FILE (a key file readable on every node; recommended) or GA_JUDGE_KEY" >&2
   exit 1
 fi
+if [ -n "${GA_JUDGE_KEY_FILE:-}" ] && [ ! -r "${GA_JUDGE_KEY_FILE}" ]; then
+  echo "GA_JUDGE_KEY_FILE is not readable here: ${GA_JUDGE_KEY_FILE} (it must be readable on every node)" >&2
+  exit 1
+fi
 
 export TRAIN_DATA="${CODE_TRAIN_DATA},${GENERAL_TRAIN_DATA}"
 export CONFIG_PATH="${SCRIPT_DIR}/config"

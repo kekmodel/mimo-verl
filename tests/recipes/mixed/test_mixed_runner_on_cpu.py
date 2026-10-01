@@ -165,24 +165,38 @@ def _before_without_registration(uni_runner):
     return before
 
 
-def test_mcp_tools_reach_the_agents_tool_definitions():
-    from recipes.general.uni_runner import GeneralHooks
+def test_mcp_tools_reach_the_real_cc_agent(monkeypatch):
+    """With the real cc-agent built from s3k-uni.yaml: the MCP tools must be in the definitions
+    sent with every model call and executable by name."""
+    from mimoagent.agents.factory import get_agent_class
 
-    class Env:
-        mcp_servers = {"crm": {}}
-        mcp_bridge_script = "/b.py"
+    from recipes.code import mimoagent_runner as runner
+    from recipes.general import uni_runner
+    from recipes.general.mcp_proxy import McpProxyTool
 
-    agent = SimpleNamespace(tool_registry=_Registry(), _tool_definitions=[])
-    import recipes.general.mcp_proxy as mp
-
-    saved = mp.discover_mcp_tools
-    mp.discover_mcp_tools = lambda *a, **k: [SimpleNamespace(name="crm.find"), SimpleNamespace(name="crm.update")]
-    try:
-        info = GeneralHooks().after_agent(SimpleNamespace(env=Env()), agent, {})
-    finally:
-        mp.discover_mcp_tools = saved
-    assert info == {"mcp_tools": 2}
-    assert [d["name"] for d in agent._tool_definitions] == ["crm.find", "crm.update"]
+    config = runner._load_config(REPO_ROOT / "config/agent/general/s3k-uni.yaml")
+    agent_config = dict(config["agent"])
+    agent_cls = get_agent_class(agent_config.pop("type"))
+    model = SimpleNamespace(query=lambda *a, **k: {"content": ""}, get_template_vars=lambda: {}, config=SimpleNamespace(model_name="policy"))
+    env = SimpleNamespace(
+        mcp_servers={"crm": {}},
+        mcp_bridge_script="/b.py",
+        execute=lambda *a, **k: {"output": "", "returncode": 0},
+        get_template_vars=lambda: {"cwd": "/work/workspace"},
+        config=SimpleNamespace(cwd="/work/workspace"),
+    )
+    agent = agent_cls(model, env, **agent_config)
+    before = {d["function"]["name"] if "function" in d else d.get("name") for d in agent._tool_definitions}
+    tool = McpProxyTool(
+        server="crm", fn="find", description="find a record", input_schema={"type": "object", "properties": {}},
+        url="http://crm", bridge_python="python3", bridge_script="/b.py",
+    )
+    monkeypatch.setattr("recipes.general.mcp_proxy.discover_mcp_tools", lambda *a, **k: [tool])
+    info = uni_runner.GeneralHooks().after_agent(SimpleNamespace(env=env), agent, {})
+    names = {d["function"]["name"] if "function" in d else d.get("name") for d in agent._tool_definitions}
+    assert info == {"mcp_tools": 1}
+    assert names - before == {tool.name}
+    assert agent.tool_registry.get(tool.name) is tool
 
 
 def test_relative_config_path_resolves_from_the_repo(monkeypatch):

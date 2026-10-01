@@ -55,6 +55,12 @@ uni-agent는 `agent_runners`를 여러 개 받고 행의 `agent_name`으로 고�
 
 Sample Mixer 전까지는 데이터로더가 두 parquet을 이어 붙여 뽑으므로, 배치의 소스 비율은 데이터 크기를 따른다.
 
+참고:
+- General 채점 시간 제한(`reward_timeout`)은 설정하지 않음. 원본 `REWARD_TIMEOUT` 기본값도 0(없음)
+- `include_task_in_reward_info`는 경로 공통이라 GAR을 켜면 General 롤아웃도 과제 설명을 싣는다. GAR은 `sources`로 General을 건너뛰므로 저장 공간만 조금 더 씀
+- `code` 경로의 하니스 선택은 그대로 `MIXED_HARNESS_SPEC`(Code 하니스 혼합). 경로별 하니스 목록은 아직 없음
+- MCP 도구 등록은 실제 `cc-agent`(s3k-uni.yaml)로 테스트: 모델 요청의 도구 정의에 들어가고 이름으로 실행됨
+
 검증이 필요한 것 (pod 필요): General 과제를 두 경로(GeneralAgentLoop, uni-agent 러너)로 같은 시드에서 돌려 보상 분포와 토큰 수가 같은지. 게이트웨이의 토큰 기록이 General의 `chat_delta` 처리와 같은 토큰열을 만드는지가 핵심.
 
 ## 4. Sample Mixer (리포트 6.3)
