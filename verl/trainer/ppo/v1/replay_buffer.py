@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
+import math
 import os
 import time
 from collections import Counter, defaultdict
@@ -708,3 +709,98 @@ class ReplayBufferAsync(ReplayBuffer):
             )
 
         return self._materialize_batch(partition_id, selected_prompt_uids, partition_snapshot), eviction_metrics
+
+
+class MixerReplayBuffer(ReplayBufferAsync):
+    """Async replay buffer that assembles every training batch from per-source quotas.
+
+    Used when ``trainer.v1.sampler.mixer.enable`` is set; the trainer attaches its
+    :class:`~verl.trainer.ppo.v1.sample_mixer.SampleMixer` as ``self.mixer`` and passes the
+    source-directed refill ``refill_source_fn(source, k)``. A batch takes exactly the mixer's quota
+    ``B_i`` of accepted groups per source, oldest first; surplus waits (never dropped). While a
+    source is short and too few of its groups are in flight to cover the deficit at its acceptance
+    rate, more of its prompts are dispatched (otherwise a batch could wait forever: surplus of
+    other sources is carried, not rejected, so it triggers no refill).
+    """
+
+    mixer = None
+    refill_source_fn = None
+    mixer_partition = "train"
+
+    def _ensure_known(self, partition_id: str, uids: set[str]) -> None:
+        """Groups dispatched before a restart are unknown to a fresh mixer: read their
+        ``data_source`` from the persisted prompt data and register them."""
+        unknown = [uid for uid in uids if uid not in self.mixer.groups]
+        if not unknown:
+            return
+        try:
+            data = tq.kv_batch_get(keys=unknown, partition_id=partition_id, select_fields=["data_source"])
+            sources = list(data["data_source"])
+        except Exception as e:  # noqa: BLE001
+            raise RuntimeError(f"mixer: cannot recover the source of {len(unknown)} restored prompt groups: {e}") from e
+        for uid, ds in zip(unknown, sources, strict=True):
+            self.mixer.on_submit(uid, self.mixer.source_of_data_source(str(getattr(ds, "data", ds))))
+
+    def _sampleable_terminal_keys(self, partition_id, eviction_reasons):
+        keys = super()._sampleable_terminal_keys(partition_id, eviction_reasons)
+        if partition_id == self.mixer_partition and self.mixer is not None:
+            live = keys | self.pending_keys[partition_id] | self.running_keys[partition_id]
+            self._ensure_known(partition_id, live)
+            for uid in keys:
+                self.mixer.on_accepted(uid)
+        return keys
+
+    def _evict_terminal_groups(self, global_steps, partition_id, eviction_reasons):
+        if partition_id == self.mixer_partition and self.mixer is not None:
+            stale_uids, dapo_uids, failed_uids, _ = eviction_reasons
+            for uid in stale_uids | dapo_uids | failed_uids:
+                self.mixer.on_rejected(uid)
+        return super()._evict_terminal_groups(global_steps, partition_id, eviction_reasons)
+
+    def _per_source(self, uids) -> dict[str, list[str]]:
+        out: dict[str, list[str]] = {n: [] for n in self.mixer.names}
+        for uid in uids:
+            g = self.mixer.groups.get(uid)
+            if g is not None:
+                out[g.source].append(uid)
+        return out
+
+    def _has_enough_samples(self, global_steps, partition_id, batch_size, sampleable_keys) -> bool:
+        if partition_id != self.mixer_partition or self.mixer is None:
+            return super()._has_enough_samples(global_steps, partition_id, batch_size, sampleable_keys)
+        if not super()._has_enough_samples(global_steps, partition_id, 0, sampleable_keys):
+            return False  # the dropless staleness wait still applies
+        quotas = self.mixer.quotas(batch_size)
+        have = self._per_source(sampleable_keys)
+        if all(len(have[n]) >= quotas[n] for n in self.mixer.names):
+            return True
+        self._dispatch_for_deficits(partition_id, quotas, have)
+        return False
+
+    def _dispatch_for_deficits(self, partition_id, quotas, have) -> None:
+        if self.refill_source_fn is None:
+            return
+        # The mixer's own ledger counts a prompt as in flight the moment it is dispatched, so a
+        # dispatch is not repeated on the next poll before TransferQueue shows it.
+        inflight, _ = self.mixer.counts()
+        for n in self.mixer.names:
+            deficit = quotas[n] - len(have[n])
+            if deficit <= 0:
+                continue
+            needed = math.ceil(deficit / max(self.mixer.r[n], 0.05))
+            short = needed - inflight[n]
+            if short > 0:
+                self.refill_source_fn(n, short)
+
+    def _select_prompt_uids(self, partition_id, sampleable_keys, batch_size):
+        if partition_id != self.mixer_partition or self.mixer is None:
+            return super()._select_prompt_uids(partition_id, sampleable_keys, batch_size)
+        prompt_global_steps_snapshot = dict(self.prompt_global_steps[partition_id])
+        partition_snapshot = dict(self.partitions[partition_id])
+        quotas = self.mixer.quotas(batch_size)
+        selected: list[str] = []
+        for n, uids in self._per_source(sampleable_keys).items():
+            uids.sort(key=lambda key: (prompt_global_steps_snapshot.get(key, 0), key))
+            selected.extend(uids[: quotas[n]])
+        self.mixer.on_consumed(selected)
+        return selected, partition_snapshot, prompt_global_steps_snapshot

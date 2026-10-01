@@ -40,3 +40,31 @@ algorithm:
   gar:
     # The GAR grader and its criteria are for code tasks.
     sources: [code]
+
+trainer:
+  v1:
+    sampler:
+      # Sample Mixer (report 6.3): every batch takes per-source quotas of accepted groups.
+      mixer:
+        enable: true
+        # accepted: quotas count accepted groups (the report); a source is then weighted 1/r_i
+        # relative to its generated prompts. generated: quotas ∝ weight·r̂_i so the expected
+        # gradient follows the weights over generated prompts.
+        target_basis: accepted
+        sources:
+          code:
+            data_sources: [opensource-code]
+            weight: 85
+            prior_accept: 0.5
+            prior_duration: 1800
+          general:
+            data_sources: [mimoagent/general_agent, mimoagent/terminal_bench]
+            weight: 15
+            prior_accept: 0.5
+            prior_duration: 600
+        alpha: 0.5          # Eq. 7: target vs deficit term (report: 0.5)
+        p_mean: 1.0         # Eq. 6 global oversampling ratio (not published; ours)
+        p_min: 0.0
+        p_max: 4.0
+        ema: 0.1            # smoothing of r_i and t_i
+        steady_state_startup: true

@@ -38,7 +38,8 @@
 > | `exec_budget_probe_timeout` | 30 | – | 예산 소진 뒤 pod 생존 확인 시간. 죽었으면 infra |
 > | `TRAJECTORY_TIMEOUT` | 7200 / 1200 | 같음 | 벽시계 안전장치. 걸리면 infra로 제외 |
 > | `...agent_framework.timeout_as_failure` (uni-agent 패치) | `false` | – | 자체 예산 없는 러너용: 시간 초과 부분 궤적을 0점 처리 |
-> | `algorithm.group_advantage_by_harness` | `false` | 같음 | 켜면 GRPO·GAR·길이 페널티가 모두 `uid::harness` 그룹 기준 |
+> | `trainer.v1.sampler.mixer.*` | 혼합 실행에서 켜짐: 85 : 15, `target_basis: accepted`, α 0.5, `p_mean` 1 | `enable=false` | Sample Mixer (리포트 6.3). `generated`로 바꾸면 생성 프롬프트 기준 비율 |
+| `algorithm.group_advantage_by_harness` | `false` | 같음 | 켜면 GRPO·GAR·길이 페널티가 모두 `uid::harness` 그룹 기준 |
 >
 > **GAR 채점기 API** (Code): `GAR_ENABLE=true GAR_GRADER_URL=<base 또는 endpoint URL> GAR_GRADER_MODEL=<모델> GAR_GRADER_API=chat|responses|anthropic`
 > (OpenAI Chat Completions / OpenAI Responses / Anthropic Messages). 키는 설정에 넣지 않습니다. **`algorithm.gar.grader.kwargs.api_key_file=<트레이너 노드의 키 파일>`을 권장**합니다: 트레이너는 Ray 액터라 실행 셸의 환경 변수(`GAR_GRADER_API_KEY`)를 못 볼 수 있습니다 (키가 비면 시작 시 경고, 모든 그룹이 fallback). Azure는 `auth_header=api-key`. 켜면 러너가 과제 설명을 결과에 실어 보냅니다. 채점기는 패치·테스트 출력·최종 메시지로 판단하고, 논문 채점기처럼 레포에 들어가 테스트를 돌리지는 않습니다. 채점은 학습 스텝 안에서 돌며 `deadline_seconds`(1800)를 넘긴 그룹은 fallback. `gar/groups_fallback`이 높으면 policy가 채점기 출력을 깨뜨리는 쪽으로 학습하고 있을 수 있으니 확인하세요.
@@ -49,7 +50,7 @@
 >
 > CPU 테스트만 검증했습니다 (`_compute_advantage`는 실제 TransferQueue 배치로 통합 테스트). GPU·실제 pod 실행은 아직 검증하지 않았습니다.
 >
-> **Code + General 혼합** (`recipes/mixed/run_mixed.sh`): General을 uni-agent 러너로 돌려 한 run에서 섞습니다. `CODE_TRAIN_DATA`, `GENERAL_TRAIN_DATA`, `GA_TASK_ROOT`, `GA_JUDGE_URL`, `GA_JUDGE_KEY_FILE`와 Code 실행 변수를 넣고 실행. 설계와 상태: [`docs/mimo-research/NEXT-mixed-rl.md`](docs/mimo-research/NEXT-mixed-rl.md). CPU 검증만 했고, 소스별 비율을 맞추는 Sample Mixer는 아직 없습니다 (지금은 데이터 크기 비율).
+> **Code + General 혼합** (`recipes/mixed/run_mixed.sh`): General을 uni-agent 러너로 돌려 한 run에서 섞습니다. `CODE_TRAIN_DATA`, `GENERAL_TRAIN_DATA`, `GA_TASK_ROOT`, `GA_JUDGE_URL`, `GA_JUDGE_KEY_FILE`와 Code 실행 변수를 넣고 실행. 설계와 상태: [`docs/mimo-research/NEXT-mixed-rl.md`](docs/mimo-research/NEXT-mixed-rl.md). 배치마다 소스별 몫(Code 85 : General 15)을 채우는 Sample Mixer가 켜져 있습니다 (`trainer.v1.sampler.mixer`, 지표 `mixer/*`). CPU 검증만 했습니다.
 
 Agentic RL training code for MiMo. The detailed training recipe can be found in Section 7 of our report [MiMo-V2.6: Scaling Reinforcement Learning Towards
 Self-Improvement](https://huggingface.co/XiaomiMiMo/MiMo-V2.6-Pro-RL/blob/main/MiMo_V2_6_technical_report.pdf).

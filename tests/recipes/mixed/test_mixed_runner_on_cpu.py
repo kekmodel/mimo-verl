@@ -246,5 +246,62 @@ def test_mixed_config_composes():
     assert kwargs.exec_budget_seconds  # shared Code setting still inherited
     assert runner_cfg.trajectory_timeout_by_dataset.general_agent == "1200"
     assert list(cfg.algorithm.gar.sources) == ["code"] and cfg.actor_rollout_ref.rollout.n == 16
+    from verl.trainer.ppo.v1.sample_mixer import MixerConfig
+
+    mixer = MixerConfig.from_raw(cfg.trainer.v1.sampler.mixer)
+    assert mixer is not None and mixer.target_basis == "accepted"
+    assert mixer.sources["general"]["data_sources"] == ["mimoagent/general_agent", "mimoagent/terminal_bench"]
     advantage_fixes.check_policy_loss_config(cfg)
     advantage_fixes.check_algorithm_config(cfg)
+
+
+def test_trainer_feeds_prompts_from_the_chosen_source(monkeypatch):
+    """_init_mixer splits the training set by data_source; every fetched prompt comes from the
+    source the mixer chose and is registered with it."""
+    import numpy as np
+    import torch
+    from omegaconf import OmegaConf
+
+    from verl.trainer.ppo.v1.sample_mixer import MixerConfig
+    from verl.trainer.ppo.v1.trainer_base import PPOTrainer
+
+    class DS(torch.utils.data.Dataset):
+        def __init__(self):
+            self.dataframe = {"data_source": ["opensource-code"] * 30 + ["mimoagent/general_agent"] * 10}
+
+        def __len__(self):
+            return 40
+
+        def __getitem__(self, i):
+            return {"raw_prompt": np.array([f"p{i}"], dtype=object)[0], "data_source": self.dataframe["data_source"][i], "index": i}
+
+    class T(PPOTrainer):
+        def on_step_end(self):
+            pass
+
+        def on_sample_end(self):
+            pass
+
+    trainer = object.__new__(T)
+    trainer.config = OmegaConf.create(
+        {"data": {"gen_batch_size": 1, "train_batch_size": 20, "shuffle": True, "seed": 1, "dataloader_num_workers": 0}}
+    )
+    trainer.parameter_sync_step = 1
+    trainer.global_steps = 1
+    trainer.train_dataset = DS()
+    trainer.replay_buffer = type("RB", (), {})()
+    trainer.mixer_config = MixerConfig(
+        enable=True,
+        sources={
+            "code": {"data_sources": ["opensource-code"], "weight": 85},
+            "general": {"data_sources": ["mimoagent/general_agent"], "weight": 15},
+        },
+    )
+    trainer._init_mixer()
+    batch = trainer._next_train_batch(20)
+    sources = [trainer.mixer.groups[u].source for u in batch["uid"]]
+    for uid, ds in zip(batch["uid"], batch["data_source"], strict=True):
+        assert trainer.mixer.groups[uid].source == trainer.mixer.source_of_data_source(ds)
+    assert set(sources) == {"code", "general"}
+    forced = trainer._next_train_batch(3, source="general")
+    assert {trainer.mixer.groups[u].source for u in forced["uid"]} == {"general"}

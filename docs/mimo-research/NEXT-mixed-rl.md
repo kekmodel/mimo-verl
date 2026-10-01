@@ -1,6 +1,6 @@
 # 다음 작업 설계: Code + General 혼합 학습과 Sample Mixer
 
-상태: 1단계(General 러너 이식) 구현 완료, CPU 검증만. 2단계(Sample Mixer) 남음. 기준 브랜치 `mimo-fixes`. 리포트 6.2 (multi-tenant rollout, heterogeneous harnesses), 6.3 (Sample Mixer).
+상태: 1단계(General 러너 이식)와 2단계(Sample Mixer) 구현 완료, CPU 검증만. pod 검증 남음. 기준 브랜치 `mimo-fixes`. 리포트 6.2 (multi-tenant rollout, heterogeneous harnesses), 6.3 (Sample Mixer).
 
 ## 1. 지금 왜 못 섞는가
 
@@ -80,6 +80,17 @@ Sample Mixer 전까지는 데이터로더가 두 parquet을 이어 붙여 뽑으
 - **통계**: `r_i`, `t_i`의 지수 이동 평균. 체크포인트에 저장
 - **`t_i` 측정**: 지금은 어디에도 없음. uni-agent 세션 시간은 colocate 학습 정지 시간을 포함한다. 트레이너가 정지 구간(`on_sample_end` → `on_step_end`)을 기록하고, 세션 시작·끝 시각에서 겹치는 정지 구간을 빼서 계산. 이게 없으면 식 6의 예산이 정지 비율만큼 틀림
 - **설정**: `trainer.v1.sampler.mixer.{enable, sources: {이름: {data_sources: [...], weight}}, p_mean, p_min, p_max, alpha, ema}`. 기본 꺼짐
+
+### 구현 (2단계)
+
+- `verl/trainer/ppo/v1/sample_mixer.py` `SampleMixer`: 소스별 몫(`apportion`, 기준 `accepted`/`generated`), 채택률 `r_i`와 활성 시간 `t_i`의 지수 이동 평균, 식 6 예산(`oversampling`, 이분 탐색), 식 7 가중치와 smooth weighted round-robin, 그룹 장부(진행 중/채택 대기), colocate 학습 정지 구간 기록과 활성 시간에서 빼기, 지표와 체크포인트 상태
+- `MixerReplayBuffer` (`replay_buffer.py`): 소스별 몫이 다 차야 배치를 냄, 소스마다 오래된 것부터, 남는 것은 이월. DAPO·실패로 버려진 그룹은 거절로 기록. 배치를 기다리는 동안 모자란 소스에 `ceil(부족분 / r̂_i)`개까지 그 소스 프롬프트를 지정해서 보충 (다른 소스의 이월분은 거절이 아니라 보충을 일으키지 않으므로, 이게 없으면 영원히 기다릴 수 있음). 재시작 뒤 모르는 그룹은 TransferQueue의 프롬프트 `data_source`로 소스를 복원
+- 트레이너: 소스별 데이터로더(`data_source`로 학습 세트를 나눔, 소스마다 시드), 프롬프트 하나마다 믹서가 소스 선택, 소스 지정 보충, colocate에서 `on_sample_end` 뒤 정지·`on_step_end` 뒤 재개 기록, 스텝마다 `mixer/*` 지표, `mixer.pt` 체크포인트
+- 설정 `trainer.v1.sampler.mixer` (`mixed.yaml`에서 켜짐): 85 : 15, `accepted`, α 0.5. `p_mean` 1.0·`p_min` 0·`p_max` 4는 리포트에 값이 없어 우리가 정한 기본값
+- 예산은 "모든 소스가 예산에 닿으면 무시"하는 부드러운 상한 (`mixer/over_budget_picks`로 셈). 트레이너는 소비되거나 거절된 그룹 하나마다 프롬프트 하나를 넣으므로 들어오는 양과 나가는 양이 같아 쌓이지 않음
+- 테스트 `tests/trainer/ppo/v1/test_sample_mixer_on_cpu.py`: 식 6 평균·단조성, 몫(두 기준), 정지 시간 제외, 식 7 비율, 부족분 우선, 시작 배분 ∝ t·m, 거부, 추적 시뮬레이션(지속 시간 10배·채택률이 다른 두 소스, 동시 실행 한도: 매 배치 정확히 몫대로, 채택된 그룹은 하나도 안 버림, 이월이 쌓이지 않음), 실제 TransferQueue에서 몫·오래된 순·이월, 부족 소스 지정 보충(한 번만)과 거절 기록, 재시작 그룹 소스 복원. 트레이너 연결 테스트(`tests/recipes/mixed`)
+
+지표: `mixer/<소스>/{quota, accept_rate, active_duration_s, budget, inflight, accepted_waiting, generated_share}`. `accepted` 기준에서 `generated_share`가 실제로 생성 프롬프트 기준 몇 %로 반영되는지 보여 준다 (`B_i / r_i` 정규화)
 
 ## 5. 수학적 주의점
 

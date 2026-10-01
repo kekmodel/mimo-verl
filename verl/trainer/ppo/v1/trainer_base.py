@@ -49,6 +49,7 @@ from verl.single_controller.ray import (
 )
 from verl.trainer.distillation import is_distillation_enabled
 from verl.trainer.ppo import advantage_fixes, core_algos, gar
+from verl.trainer.ppo.v1.sample_mixer import MixerConfig, SampleMixer
 from verl.trainer.ppo.core_algos import agg_loss
 from verl.trainer.ppo.metric_utils import (
     RolloutMoELoadBalanceMetricsAccumulator,
@@ -72,7 +73,12 @@ from verl.trainer.ppo.utils import (
     need_reference_policy,
     need_teacher_policy,
 )
-from verl.trainer.ppo.v1.replay_buffer import DAPO_FILTERED_REWARD_COUNTS_KEY, ReplayBuffer, ReplayBufferAsync
+from verl.trainer.ppo.v1.replay_buffer import (
+    DAPO_FILTERED_REWARD_COUNTS_KEY,
+    MixerReplayBuffer,
+    ReplayBuffer,
+    ReplayBufferAsync,
+)
 from verl.trainer.ppo.v1.utils import MetricsAggregator, compute_advantage_for_multi_trajectories
 from verl.utils import tensordict_utils as tu
 from verl.utils.checkpoint.checkpoint_manager import find_latest_ckpt_path
@@ -402,6 +408,8 @@ class PPOTrainer(ABC):
 
         self.trainer_mode = self.config.trainer.v1.trainer_mode
         self.parameter_sync_step = self.config.trainer.v1.get(self.trainer_mode, {}).get("parameter_sync_step", 1)
+        self.mixer_config = None
+        self.mixer = None
         self.replay_buffer = self._build_replay_buffer()
         self._rollout_moe_lb_metrics_accumulator = RolloutMoELoadBalanceMetricsAccumulator(
             model_config=self.config.actor_rollout_ref.model
@@ -424,6 +432,11 @@ class PPOTrainer(ABC):
             sampler_cls = load_extern_type(custom_sampler.path, custom_sampler.name)
         else:
             sampler_cls = ReplayBuffer if self.trainer_mode == "sync" else ReplayBufferAsync
+            self.mixer_config = MixerConfig.from_raw(sampler_config.get("mixer", None))
+            if self.mixer_config is not None:
+                if self.trainer_mode == "sync":
+                    raise ValueError("trainer.v1.sampler.mixer needs an async trainer mode")
+                sampler_cls = MixerReplayBuffer
 
         replay_buffer_kwargs = dict(
             trainer_mode=self.trainer_mode,
@@ -731,6 +744,8 @@ class PPOTrainer(ABC):
                         self._save_checkpoint()
 
                 self.on_step_end()
+                if getattr(self, "mixer", None) is not None:
+                    self.mixer.resume()
                 metrics.update(self._consume_sync_metrics())
 
             # 4. validate
@@ -817,6 +832,10 @@ class PPOTrainer(ABC):
             metrics.update(off_policy_metrics)
             batch.extra_info["temperature"] = self.config.actor_rollout_ref.rollout.temperature
             self.on_sample_end()
+            if getattr(self, "mixer", None) is not None:
+                if self.trainer_mode == "colocate_async":
+                    self.mixer.pause()  # generation stops until on_step_end: not active rollout time
+                metrics.update(self.mixer.metrics(sample_batch_size))
 
         # 2. [OPTIONAL] compute reward score with colocated reward model
         if self.reward_loop_manager.reward_loop_worker_handles is None:
@@ -965,6 +984,8 @@ class PPOTrainer(ABC):
             sampler=create_rl_sampler(self.config.data, self.train_dataset),
         )
         self.train_dataloader_it = None
+        if getattr(self, "mixer_config", None) is not None:
+            self._init_mixer()
         self.val_dataloader = StatefulDataLoader(
             dataset=self.val_dataset,
             batch_size=self.config.data.val_batch_size or len(self.val_dataset),
@@ -1104,6 +1125,13 @@ class PPOTrainer(ABC):
         if os.path.exists(dataloader_local_path):
             dataloader_state_dict = torch.load(dataloader_local_path, weights_only=False)
             self.train_dataloader.load_state_dict(dataloader_state_dict)
+            mixer_path = os.path.join(global_step_folder, "mixer.pt")
+            if getattr(self, "mixer", None) is not None and os.path.exists(mixer_path):
+                mixer_state = torch.load(mixer_path, weights_only=False)
+                self.mixer.load_state_dict(mixer_state["mixer"])
+                for n, state in mixer_state.get("loaders", {}).items():
+                    if n in self.mixer_loaders:
+                        self.mixer_loaders[n].load_state_dict(state)
         else:
             logger.warning(f"Warning: No dataloader state found at {dataloader_local_path}, will start from scratch")
 
@@ -1205,6 +1233,14 @@ class PPOTrainer(ABC):
         local_mkdir_safe(local_global_step_folder)
         dataloader_local_path = os.path.join(local_global_step_folder, "data.pt")
         torch.save(self.train_dataloader.state_dict(), dataloader_local_path)
+        if getattr(self, "mixer", None) is not None:
+            torch.save(
+                {
+                    "mixer": self.mixer.state_dict(),
+                    "loaders": {n: loader.state_dict() for n, loader in self.mixer_loaders.items()},
+                },
+                os.path.join(local_global_step_folder, "mixer.pt"),
+            )
 
         # save TransferQueue state for async modes so in-flight prompts (already fetched from the
         # dataloader but not yet trained into this checkpoint's weights) survive a restart:
@@ -1586,8 +1622,57 @@ class PPOTrainer(ABC):
             if self.use_critic:
                 self.critic_wg.stop_profile()
 
-    def _fetch_one_gen_batch(self) -> TensorDict:
-        """Fetch one ``gen_batch_size`` chunk from the dataloader."""
+    def _init_mixer(self) -> None:
+        """Sample Mixer: one dataloader per source, the mixer state, and its replay buffer hooks."""
+        from torch.utils.data import Subset
+
+        if (self.config.data.get("gen_batch_size", None) or 1) != 1:
+            raise ValueError("the sample mixer picks a source per prompt and needs data.gen_batch_size=1")
+        self.mixer = SampleMixer(self.mixer_config)
+        data_sources = self.train_dataset.dataframe["data_source"]
+        by_source: dict[str, list[int]] = {n: [] for n in self.mixer.names}
+        for index, ds in enumerate(data_sources):
+            by_source[self.mixer.source_of_data_source(str(ds))].append(index)
+        seed = int(self.config.data.get("seed", 1) or 1)
+        self.mixer_loaders = {}
+        for i, (name, indices) in enumerate(by_source.items()):
+            if not indices:
+                raise ValueError(f"mixer source {name!r} matches no training rows")
+            generator = torch.Generator()
+            generator.manual_seed(seed + i)
+            self.mixer_loaders[name] = StatefulDataLoader(
+                dataset=Subset(self.train_dataset, indices),
+                batch_size=1,
+                shuffle=self.config.data.get("shuffle", True),
+                generator=generator,
+                num_workers=self.config.data["dataloader_num_workers"],
+                drop_last=True,
+                collate_fn=collate_fn,
+            )
+        self.mixer_iters = {name: None for name in self.mixer_loaders}
+        self.replay_buffer.mixer = self.mixer
+        self.replay_buffer.refill_source_fn = lambda source, k: self._add_prompts_to_generate(k, source=source)
+        logger.info("sample mixer: %s", {n: len(v) for n, v in by_source.items()})
+
+    def _mixer_batch_size(self) -> int:
+        return self.config.data.train_batch_size // self.parameter_sync_step
+
+    def _fetch_one_gen_batch(self, source: str | None = None) -> TensorDict:
+        """Fetch one ``gen_batch_size`` chunk from the dataloader (with the mixer: from the chosen
+        or given source's dataloader)."""
+        if getattr(self, "mixer", None) is not None:
+            source = source or self.mixer.choose_source(self._mixer_batch_size())
+            try:
+                if self.mixer_iters[source] is None:
+                    self.mixer_iters[source] = iter(self.mixer_loaders[source])
+                batch_dict = next(self.mixer_iters[source])
+            except StopIteration:
+                self.mixer_iters[source] = iter(self.mixer_loaders[source])
+                batch_dict = next(self.mixer_iters[source])
+            batch_dict["uid"] = np.array([str(uuid.uuid4()) for _ in range(len(batch_dict["raw_prompt"]))], dtype=object)
+            for uid in batch_dict["uid"]:
+                self.mixer.on_submit(uid, source)
+            return tu.get_tensordict(batch_dict)
         try:
             if self.train_dataloader_it is None:
                 self.train_dataloader_it = iter(self.train_dataloader)
@@ -1599,7 +1684,7 @@ class PPOTrainer(ABC):
         batch_dict["uid"] = np.array([str(uuid.uuid4()) for _ in range(len(batch_dict["raw_prompt"]))], dtype=object)
         return tu.get_tensordict(batch_dict)
 
-    def _next_train_batch(self, num_prompts: int | None = None) -> TensorDict:
+    def _next_train_batch(self, num_prompts: int | None = None, source: str | None = None) -> TensorDict:
         """Fetch and coalesce the requested number of prompts."""
         train_batch_size = self.config.data.train_batch_size
         if num_prompts is None:
@@ -1611,7 +1696,8 @@ class PPOTrainer(ABC):
                 f"({gen_batch_size}); it is submitted in whole gen_batch_size dataloader fetches."
             )
 
-        chunks = [self._fetch_one_gen_batch() for _ in range(num_prompts // gen_batch_size)]
+        fetch = self._fetch_one_gen_batch if source is None else (lambda: self._fetch_one_gen_batch(source))
+        chunks = [fetch() for _ in range(num_prompts // gen_batch_size)]
         batch = chunks[0] if len(chunks) == 1 else tu.concat_tensordict(chunks)
         tu.assign_non_tensor_data(batch, "global_steps", self.global_steps)
         return batch
@@ -1634,9 +1720,9 @@ class PPOTrainer(ABC):
         self.agent_loop_manager.generate_sequences(batch)
         return len(batch)
 
-    def _add_prompts_to_generate(self, num_prompts: int) -> int:
-        """Add an exact number of prompts to the AgentLoopManager."""
-        batch = self._next_train_batch(num_prompts)
+    def _add_prompts_to_generate(self, num_prompts: int, source: str | None = None) -> int:
+        """Add an exact number of prompts to the AgentLoopManager (from ``source`` when given)."""
+        batch = self._next_train_batch(num_prompts) if source is None else self._next_train_batch(num_prompts, source=source)
         return self._submit_batch_to_rollout(batch)
 
     @SkipManager.annotate_tq(role="rollout_tq", phase="submit")
