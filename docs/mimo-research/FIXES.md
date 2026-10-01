@@ -60,7 +60,7 @@ git submodule update --init third_party/mimoagent-osr third_party/uni_agent
 
 원칙: 하이퍼파라미터와 verl 기본 기능 밖의 추가 기능은 설정으로 고를 수 있어야 한다. 기본값은 수학적으로 맞는 쪽, 원본 동작은 설정 한 줄로 되돌린다. 전체 표는 저장소 README.
 
-- `algorithm.exclude_invalid_rows` (기본 true): 무효 세션 제외. false면 모든 행을 그대로 학습 (원본과 같음). 원본의 sentinel 처리는 실행되지 않으므로 false와 `invalid_reward_value`는 함께 쓸 수 없음
+- `algorithm.exclude_invalid_rows` (기본 true): 무효 세션 제외. false면 모든 행을 그대로 학습 (Code·General 기준 원본과 같음. 원본 ARVO는 arvo_penalties를 켜면 is_infra uid를 따로 분리했음). 원본의 sentinel 처리는 실행되지 않으므로 false와 `invalid_reward_value`는 함께 쓸 수 없음
 - 손실 방식: `algorithm.rollout_correction.*`와 `actor.policy_loss.loss_mode`. `bypass_mode`와 `loss_mode`가 어긋나면(한쪽만 바꾸면) 트레이너 시작과 Code preflight(`validate_resolved_config.py`)에서 막음. preflight는 더 이상 특정 손실 방식을 강제하지 않음. 원본 PPO로 되돌리려면 `bypass_mode=false`, `rollout_is=null`, `loss_mode=vanilla` 세 개를 모두 바꿈 (`rollout_is`가 남으면 decoupled 경로가 IcePop 가중치를 PPO 손실에 곱함)
 - 도구 실행 예산: `exec_budget_seconds`, Code `exec_budget_agent_types`(null = 모델 기반 하니스), `exec_budget_probe_timeout`(30)
 - `algorithm.gar.*` (아래 절)
@@ -107,6 +107,7 @@ git submodule update --init third_party/mimoagent-osr third_party/uni_agent
 - factor: T1 1등 1, T1 나머지 `f_runner` 0.9, T2 동률 그룹 순서대로 `f_max` 0.85 → `f_min` 0.4 선형, T3 `f_low` 0.2 (논문 Flash 설정)
 - 채점기: `gar.grader.{path, name, kwargs}`로 불러오는 callable. `grade(groups: list[Group]) -> {group_id: GroupResult | None}`. `GroupResult(grades={session_key: Grade(tier, rank)}, hacks=[...])`. 통과 후보가 순위에서 빠졌거나 형식이 틀리면 그 그룹은 원래 advantage 유지 (`gar/groups_fallback`). 채점기가 예외를 내면 그 스텝의 모든 대상 그룹이 원래 advantage로 돌아감 (`gar/grader_error`)
 - 조건: `adv_estimator=grpo`, `norm_adv_by_std_in_grpo=false` (아니면 시작 시 오류)
+- `deep_failure_mask`는 `token_level_scores`(hack 교정 전)를 읽으므로 hack을 통과로 봄. 둘 다 레시피에서 꺼져 있음
 - 지표: `gar/groups_eligible`, `gar/groups_graded`, `gar/groups_fallback`, `gar/confirmed_hacks`, `gar/tier_share_T{1,2,3}`, `gar/lambda_mean`, `gar/lambda_capped_rate`
 - LLM API 채점기 `verl/trainer/ppo/gar_api_grader.py` (`APIGrader`, Code 설정의 기본 채점기): URL만 넣으면 OpenAI Chat Completions, OpenAI Responses, Anthropic Messages 중 하나로 호출. `run_train.sh`의 `GAR_ENABLE`, `GAR_GRADER_URL`, `GAR_GRADER_MODEL`, `GAR_GRADER_API`
   - 그룹마다 요청 1개 (병렬 `max_workers`, 429·5xx·타임아웃 재시도). 후보 순서는 그룹별 고정 시드로 섞고 C1, C2… 로 익명화. 실패 후보도 비교 맥락으로 넣음

@@ -423,7 +423,10 @@ def check_algorithm_config(config) -> None:
         return OmegaConf.select(config, key, default=default)
 
     sentinel = sel("algorithm.invalid_reward_value") is not None
-    length = bool((sel("algorithm.length_penalty") or {}).get("enable", (sel("algorithm.length_penalty") or {}).get("enabled", False)))
+    lp_raw = sel("algorithm.length_penalty")
+    if lp_raw is not None and not isinstance(lp_raw, dict):
+        lp_raw = OmegaConf.to_container(lp_raw, resolve=True)
+    length = length_penalty_config(lp_raw) is not None  # same parsing as the trainer ("False" is off)
     gar_on = bool((sel("algorithm.gar") or {}).get("enable", False))
     arvo = bool(sel("algorithm.arvo_penalties.enable", False))
     if sentinel and not bool(sel("algorithm.exclude_invalid_rows", True)):

@@ -345,6 +345,7 @@ def test_algorithm_config_guards():
         af.check_algorithm_config(cfg(invalid_reward_value=-999, exclude_invalid_rows=False))
     with pytest.raises(ValueError, match="use_kl_in_reward"):
         af.check_algorithm_config(cfg(use_kl_in_reward=True, length_penalty={"enable": True}))
+    af.check_algorithm_config(cfg(use_kl_in_reward=True, length_penalty={"enable": "False"}))  # env string: off
     with pytest.raises(ValueError, match="pick one"):
         af.check_algorithm_config(cfg(arvo_penalties={"enable": True}, length_penalty={"enabled": True}))
     with pytest.raises(ValueError, match="pick one"):
