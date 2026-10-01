@@ -735,11 +735,16 @@ class MixerReplayBuffer(ReplayBufferAsync):
             return
         try:
             data = tq.kv_batch_get(keys=unknown, partition_id=partition_id, select_fields=["data_source"])
-            sources = list(data["data_source"])
-        except Exception as e:  # noqa: BLE001
-            raise RuntimeError(f"mixer: cannot recover the source of {len(unknown)} restored prompt groups: {e}") from e
+            sources = [str(getattr(ds, "data", ds)) for ds in list(data["data_source"])]
+        except Exception as e:  # noqa: BLE001 - degrade: a misattributed group only shifts one batch's mix
+            logger.warning("mixer: cannot read data_source of %d restored groups (%s); assigning them", len(unknown), e)
+            sources = [None] * len(unknown)
         for uid, ds in zip(unknown, sources, strict=True):
-            self.mixer.on_submit(uid, self.mixer.source_of_data_source(str(getattr(ds, "data", ds))))
+            try:
+                source = self.mixer.source_of_data_source(ds) if ds is not None else self.mixer.fallback_source()
+            except ValueError:
+                source = self.mixer.fallback_source()
+            self.mixer.on_submit(uid, source)
 
     def _sampleable_terminal_keys(self, partition_id, eviction_reasons):
         keys = super()._sampleable_terminal_keys(partition_id, eviction_reasons)

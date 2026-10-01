@@ -250,6 +250,8 @@ def test_mixed_config_composes():
 
     mixer = MixerConfig.from_raw(cfg.trainer.v1.sampler.mixer)
     assert mixer is not None and mixer.target_basis == "accepted"
+    assert MixerConfig.from_raw({**OmegaConf.to_container(cfg.trainer.v1.sampler.mixer), "target_basis": "generated"})
+    assert cfg.trainer.total_training_steps  # a step budget bounds the run (epochs are per source)
     assert mixer.sources["general"]["data_sources"] == ["mimoagent/general_agent", "mimoagent/terminal_bench"]
     advantage_fixes.check_policy_loss_config(cfg)
     advantage_fixes.check_algorithm_config(cfg)

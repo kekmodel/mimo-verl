@@ -35,7 +35,9 @@ rollout duration (generation + environment, *without* the colocated trainer's pa
   would censor the slow, long rollouts).
 
 Predictive rollout dispatch (KV-aware placement, an inference-engine concern) and sample
-replay are not implemented.
+replay are not implemented. ``t_i`` also counts the wait between dispatch and the agent's
+start (queueing under the concurrency limits); it is policy-independent and inflates every
+source's duration alike.
 """
 
 from __future__ import annotations
@@ -170,6 +172,11 @@ class SampleMixer:
         self.batch_size = 0
 
     # ---- sources ---------------------------------------------------------------------------
+    def fallback_source(self) -> str:
+        """For a group whose source cannot be recovered: the largest source, counted."""
+        self._counters["unknown_source_groups"] += 1
+        return max(self.names, key=lambda n: self.pi[n])
+
     def source_of_data_source(self, data_source: str) -> str:
         if data_source not in self.by_data_source:
             raise ValueError(f"data_source {data_source!r} belongs to no mixer source; known: {sorted(self.by_data_source)}")
@@ -246,7 +253,9 @@ class SampleMixer:
         e = self.cfg.ema
         n = g.source
         self.r[n] = (1 - e) * self.r[n] + e * (1.0 if accepted else 0.0)
-        self.t[n] = (1 - e) * self.t[n] + e * self._active_duration(g, now)
+        # Floor at 1 s: a burst of instant (infra) rejections must not drive a source's duration
+        # to zero, which would give it no oversampling at all in Eq. 6.
+        self.t[n] = max(1.0, (1 - e) * self.t[n] + e * self._active_duration(g, now))
         self.seen_terminal[n] += 1
         if accepted:
             g.state = "accepted"
@@ -298,6 +307,7 @@ class SampleMixer:
                 }
             )
         out["mixer/over_budget_picks"] = self._counters["over_budget_picks"]
+        out["mixer/unknown_source_groups"] = self._counters["unknown_source_groups"]
         return out
 
     def state_dict(self) -> dict:

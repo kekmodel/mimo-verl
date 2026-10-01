@@ -114,6 +114,18 @@ def test_startup_allocates_by_duration_times_demand():
     assert w["code"] / w["general"] == pytest.approx((1800 * 85) / (600 * 15))
 
 
+def test_steady_state_startup_sends_the_first_prompts_to_the_slow_heavy_source():
+    m, _ = _mixer()
+    assert [m.choose_source(64) for _ in range(2)] == ["code", "code"]  # 85*1800 : 15*600 = 17 : 1
+
+
+def test_instant_rejections_do_not_zero_a_duration():
+    m, clock = _mixer(ema=1.0)
+    m.on_submit("u", "general")
+    m.on_rejected("u")
+    assert m.t["general"] == 1.0
+
+
 def test_unknown_data_source_is_refused():
     m, _ = _mixer()
     with pytest.raises(ValueError, match="no mixer source"):

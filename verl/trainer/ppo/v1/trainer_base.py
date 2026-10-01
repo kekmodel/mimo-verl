@@ -836,6 +836,7 @@ class PPOTrainer(ABC):
                 if self.trainer_mode == "colocate_async":
                     self.mixer.pause()  # generation stops until on_step_end: not active rollout time
                 metrics.update(self.mixer.metrics(sample_batch_size))
+                metrics.update({f"mixer/{n}/epochs": float(e) for n, e in self.mixer_epochs.items()})
 
         # 2. [OPTIONAL] compute reward score with colocated reward model
         if self.reward_loop_manager.reward_loop_worker_handles is None:
@@ -1645,11 +1646,19 @@ class PPOTrainer(ABC):
                 batch_size=1,
                 shuffle=self.config.data.get("shuffle", True),
                 generator=generator,
-                num_workers=self.config.data["dataloader_num_workers"],
+                # A prompt per call from the chosen source; workers would prefetch rows per loader
+                # for nothing (rows are dict lookups plus tokenization).
+                num_workers=0,
                 drop_last=True,
                 collate_fn=collate_fn,
             )
         self.mixer_iters = {name: None for name in self.mixer_loaders}
+        self.mixer_epochs = {name: 0 for name in self.mixer_loaders}
+        logger.warning(
+            "sample mixer: each source cycles through its own rows at its own rate, so the trainer's "
+            "epoch counter (combined dataset size) no longer means one pass; bound the run with "
+            "trainer.total_training_steps and see mixer/<source>/epochs for per-source passes"
+        )
         self.replay_buffer.mixer = self.mixer
         self.replay_buffer.refill_source_fn = lambda source, k: self._add_prompts_to_generate(k, source=source)
         logger.info("sample mixer: %s", {n: len(v) for n, v in by_source.items()})
@@ -1667,6 +1676,7 @@ class PPOTrainer(ABC):
                     self.mixer_iters[source] = iter(self.mixer_loaders[source])
                 batch_dict = next(self.mixer_iters[source])
             except StopIteration:
+                self.mixer_epochs[source] += 1
                 self.mixer_iters[source] = iter(self.mixer_loaders[source])
                 batch_dict = next(self.mixer_iters[source])
             batch_dict["uid"] = np.array([str(uuid.uuid4()) for _ in range(len(batch_dict["raw_prompt"]))], dtype=object)

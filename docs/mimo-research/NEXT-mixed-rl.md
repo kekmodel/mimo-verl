@@ -90,7 +90,13 @@ Sample Mixer 전까지는 데이터로더가 두 parquet을 이어 붙여 뽑으
 - 예산은 "모든 소스가 예산에 닿으면 무시"하는 부드러운 상한 (`mixer/over_budget_picks`로 셈). 트레이너는 소비되거나 거절된 그룹 하나마다 프롬프트 하나를 넣으므로 들어오는 양과 나가는 양이 같아 쌓이지 않음
 - 테스트 `tests/trainer/ppo/v1/test_sample_mixer_on_cpu.py`: 식 6 평균·단조성, 몫(두 기준), 정지 시간 제외, 식 7 비율, 부족분 우선, 시작 배분 ∝ t·m, 거부, 추적 시뮬레이션(지속 시간 10배·채택률이 다른 두 소스, 동시 실행 한도: 매 배치 정확히 몫대로, 채택된 그룹은 하나도 안 버림, 이월이 쌓이지 않음), 실제 TransferQueue에서 몫·오래된 순·이월, 부족 소스 지정 보충(한 번만)과 거절 기록, 재시작 그룹 소스 복원. 트레이너 연결 테스트(`tests/recipes/mixed`)
 
-지표: `mixer/<소스>/{quota, accept_rate, active_duration_s, budget, inflight, accepted_waiting, generated_share}`. `accepted` 기준에서 `generated_share`가 실제로 생성 프롬프트 기준 몇 %로 반영되는지 보여 준다 (`B_i / r_i` 정규화)
+참고:
+- `t_i`에는 프롬프트를 보낸 뒤 에이전트가 시작하기까지의 대기(동시 실행 한도)도 들어감. 정책과 무관하고 모든 소스에 비슷하게 더해짐. `t_i`는 1초 아래로 내려가지 않음 (즉시 실패가 몰려도 예산이 0이 되지 않게)
+- 에포크는 소스마다 다른 속도로 돔 (General은 85 : 15에서도 데이터가 작아 더 자주 돎). 트레이너의 에포크 수는 의미가 없어지므로 `trainer.total_training_steps`(Code 설정 200)로 길이를 정하고 `mixer/<소스>/epochs`로 소스별 반복 횟수를 봄
+- 소스별 데이터로더는 `num_workers=0` (프롬프트 하나씩 소스를 골라 꺼내므로 미리 읽을 이유가 없음)
+- 재시작 뒤 프롬프트의 `data_source`를 못 읽으면 가장 큰 소스로 배정하고 `mixer/unknown_source_groups`로 셈 (학습은 계속)
+
+지표: `mixer/<소스>/{quota, accept_rate, active_duration_s, budget, inflight, accepted_waiting, generated_share, epochs}`, `mixer/over_budget_picks`. `accepted` 기준에서 `generated_share`가 실제로 생성 프롬프트 기준 몇 %로 반영되는지 보여 준다 (`B_i / r_i` 정규화)
 
 ## 5. 수학적 주의점
 

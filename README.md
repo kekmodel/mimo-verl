@@ -38,7 +38,7 @@
 > | `exec_budget_probe_timeout` | 30 | – | 예산 소진 뒤 pod 생존 확인 시간. 죽었으면 infra |
 > | `TRAJECTORY_TIMEOUT` | 7200 / 1200 | 같음 | 벽시계 안전장치. 걸리면 infra로 제외 |
 > | `...agent_framework.timeout_as_failure` (uni-agent 패치) | `false` | – | 자체 예산 없는 러너용: 시간 초과 부분 궤적을 0점 처리 |
-> | `trainer.v1.sampler.mixer.*` | 혼합 실행에서 켜짐: 85 : 15, `target_basis: accepted`, α 0.5, `p_mean` 1 | `enable=false` | Sample Mixer (리포트 6.3). `generated`로 바꾸면 생성 프롬프트 기준 비율 |
+> | `trainer.v1.sampler.mixer.*` | `run_mixed.sh`(혼합 설정)에서만 켜짐: 85 : 15, `target_basis: accepted`, α 0.5, `p_mean` 1. Code·General 단독 실행에서는 꺼짐 | `enable=false` | Sample Mixer (리포트 6.3). `generated`로 바꾸면 생성 프롬프트 기준 비율 |
 | `algorithm.group_advantage_by_harness` | `false` | 같음 | 켜면 GRPO·GAR·길이 페널티가 모두 `uid::harness` 그룹 기준 |
 >
 > **GAR 채점기 API** (Code): `GAR_ENABLE=true GAR_GRADER_URL=<base 또는 endpoint URL> GAR_GRADER_MODEL=<모델> GAR_GRADER_API=chat|responses|anthropic`
