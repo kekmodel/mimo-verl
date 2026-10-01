@@ -54,6 +54,10 @@ class GARConfig:
     pass_threshold: float = 1.0
     # {"path": ..., "name": ..., "kwargs": {...}}: a callable ``grade(groups) -> results``.
     grader: dict[str, Any] = field(default_factory=dict)
+    # Grade only groups whose rollouts carry one of these ``reward_extra_info.source`` labels
+    # (the mixed runner's route names). None grades every mixed group. The paper's grader and
+    # criteria are for code tasks.
+    sources: Optional[list[str]] = None
 
     def __post_init__(self):
         for name in ("f_runner", "f_max", "f_min", "f_low"):
@@ -231,7 +235,13 @@ class GARStep:
             if not bool(invalid[row]):
                 members.setdefault(str(group_ids[row]), []).append(skey)
         groups = []
+        skipped_source = 0
         for gid, skeys in members.items():
+            if self.cfg.sources is not None and extra_fields is not None:
+                info = _meta(_meta(extra_fields[final[skeys[0]]]).get("reward_extra_info"))
+                if info.get("source") not in self.cfg.sources:
+                    skipped_source += 1
+                    continue
             passed = [float(scores[final[s]]) >= self.cfg.pass_threshold for s in skeys]
             if len(skeys) >= 2 and any(passed) and not all(passed):
                 groups.append(
@@ -243,7 +253,12 @@ class GARStep:
                         ],
                     )
                 )
-        metrics = {"gar/groups_eligible": float(len(groups)), "gar/groups_graded": 0.0, "gar/groups_fallback": 0.0}
+        metrics = {
+            "gar/groups_eligible": float(len(groups)),
+            "gar/groups_graded": 0.0,
+            "gar/groups_fallback": 0.0,
+            "gar/groups_other_source": float(skipped_source),
+        }
         self._groups, self._passed, self._f = {}, {}, {}
         if not groups:
             return token_level_rewards, metrics

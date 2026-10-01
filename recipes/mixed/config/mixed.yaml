@@ -1,0 +1,42 @@
+# Code + General in one run on uni-agent (docs/mimo-research/NEXT-mixed-rl.md).
+# Extends recipes/code/config/train.yaml: everything not set here is the Code recipe's setting.
+# Launch with recipes/mixed/run_mixed.sh.
+# run_train.sh puts recipes/code/config on hydra.searchpath, where train.yaml is found.
+defaults:
+  - train
+  - _self_
+
+actor_rollout_ref:
+  rollout:
+    custom:
+      agent_framework:
+        agent_runners:
+          mimoagent:
+            # One runner for both sources: it routes each sample by its instance's
+            # dataset_type and runs the MimoAgent runner with the route's settings on top of
+            # the shared runner_kwargs from train.yaml.
+            runner_fqn: recipes.mixed.runner.mixed_runner
+            runner_kwargs:
+              route_by_dataset_type:
+                opensource-code: code
+                general_agent: general
+                terminal_bench: general
+              routes:
+                code: {}
+                general:
+                  config_path: config/agent/general/s3k-uni.yaml
+                  environment_hooks: general
+                  # Rubric scores in [0, 1] trained as pass/fail (run_general.sh's REWARD_BINARIZE);
+                  # null keeps the raw score.
+                  reward_binarize_threshold: ${oc.decode:${oc.env:GENERAL_REWARD_BINARIZE_THRESHOLD,1.0}}
+                  exec_budget_seconds: ${oc.env:GENERAL_EXEC_BUDGET_SECONDS,300}
+            # Wall-clock backstops per dataset_type (General's upstream value); Code keeps
+            # session_timeout_seconds.
+            trajectory_timeout_by_dataset:
+              general_agent: ${oc.env:GENERAL_TRAJECTORY_TIMEOUT,1200}
+              terminal_bench: ${oc.env:GENERAL_TRAJECTORY_TIMEOUT,1200}
+
+algorithm:
+  gar:
+    # The GAR grader and its criteria are for code tasks.
+    sources: [code]

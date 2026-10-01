@@ -1,8 +1,6 @@
 
-hydra:
-  searchpath:
-    - pkg://verl.trainer.config
-
+# hydra.searchpath (pkg://verl.trainer.config) comes from run_train.sh's command line, so this
+# file can also be extended by another primary config (recipes/mixed/config/mixed.yaml).
 defaults:
   - ppo_megatron_trainer
   - _self_

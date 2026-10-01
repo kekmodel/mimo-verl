@@ -113,7 +113,10 @@ fi
 SAVE_FREQ="${SAVE_FREQ:-5}"
 TEST_FREQ="${TEST_FREQ:--1}"
 RAY_INIT_ADDRESS="${RAY_INIT_ADDRESS:-auto}"
-CONFIG_PATH="${SCRIPT_DIR}/config"
+CODE_CONFIG_PATH="${SCRIPT_DIR}/config"
+# recipes/mixed/run_mixed.sh reuses this launcher with its own config, which extends train.yaml.
+CONFIG_PATH="${CONFIG_PATH:-${CODE_CONFIG_PATH}}"
+CONFIG_NAME="${CONFIG_NAME:-train}"
 PROJECT_NAME="${PROJECT_NAME:-opensource-code}"
 EXP_NAME="${EXP_NAME:-four-whitebox}"
 RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
@@ -213,9 +216,9 @@ OPTIONAL_OVERRIDES=()
 
 MAIN_CMD=(
   python3 -m verl.trainer.main_ppo \
-  --config-name=train \
+  --config-name="${CONFIG_NAME}" \
   --config-path="${CONFIG_PATH}" \
-  hydra.searchpath=[pkg://verl.trainer.config] \
+  "hydra.searchpath=[pkg://verl.trainer.config,file://${CODE_CONFIG_PATH}]" \
   +ray_kwargs.ray_init.address="${RAY_INIT_ADDRESS}" \
   trainer.use_v1=True \
   transfer_queue.enable=True \

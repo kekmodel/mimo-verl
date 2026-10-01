@@ -49,7 +49,7 @@
 >
 > CPU 테스트만 검증했습니다 (`_compute_advantage`는 실제 TransferQueue 배치로 통합 테스트). GPU·실제 pod 실행은 아직 검증하지 않았습니다.
 >
-> Code와 General을 한 run에서 섞으려면 두 레시피가 같은 롤아웃 매니저를 써야 합니다 (지금은 Code가 uni-agent 어댑터, General이 verl AgentLoop). 이것과 Sample Mixer는 다음 작업입니다.
+> **Code + General 혼합** (`recipes/mixed/run_mixed.sh`): General을 uni-agent 러너로 돌려 한 run에서 섞습니다. `CODE_TRAIN_DATA`, `GENERAL_TRAIN_DATA`, `GA_TASK_ROOT`, `GA_JUDGE_URL`, `GA_JUDGE_KEY_FILE`와 Code 실행 변수를 넣고 실행. 설계와 상태: [`docs/mimo-research/NEXT-mixed-rl.md`](docs/mimo-research/NEXT-mixed-rl.md). CPU 검증만 했고, 소스별 비율을 맞추는 Sample Mixer는 아직 없습니다 (지금은 데이터 크기 비율).
 
 Agentic RL training code for MiMo. The detailed training recipe can be found in Section 7 of our report [MiMo-V2.6: Scaling Reinforcement Learning Towards
 Self-Improvement](https://huggingface.co/XiaomiMiMo/MiMo-V2.6-Pro-RL/blob/main/MiMo_V2_6_technical_report.pdf).

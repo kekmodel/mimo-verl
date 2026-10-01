@@ -174,3 +174,20 @@ def test_hacks_are_zeroed_on_a_copy():
     assert out[2].sum().item() == 0.0 and rewards[2].sum().item() == 1.0  # rm_scores untouched
     assert step._passed == {"u_0": True, "u_1": True, "u_2": False, "u_3": False}
     assert m["gar/confirmed_hacks"] == 1.0
+
+
+def test_sources_filter_grades_only_code_groups():
+    rewards = torch.zeros(8, 3)
+    rewards[[0, 1, 4, 5], -1] = 1.0
+    keys = [f"c_{i}_0" for i in range(4)] + [f"g_{i}_0" for i in range(4)]
+    gids = np.array(["c"] * 4 + ["g"] * 4, dtype=object)
+    extra = [{"reward_extra_info": {"source": "code"}}] * 4 + [{"reward_extra_info": {"source": "general"}}] * 4
+    seen = []
+
+    def grader(groups):
+        seen.extend(g.group_id for g in groups)
+        return {}
+
+    step = GARStep(GARConfig(sources=["code"]), grader)
+    _, m = step.grade(rewards, gids, keys, torch.zeros(8, dtype=torch.bool), extra)
+    assert seen == ["c"] and m["gar/groups_other_source"] == 1.0

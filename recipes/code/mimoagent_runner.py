@@ -331,6 +331,9 @@ def _run_sync(
     exec_budget_agent_types: frozenset[str] | None = None,
     exec_budget_probe_timeout: int = 30,
     include_task_in_reward_info: bool = False,
+    environment_hooks: Any = None,
+    reward_binarize_threshold: float | None = None,
+    reward_timeout: float | None = None,
 ) -> dict[str, Any]:
     _prepare_swebench_import_path()
     from mimoagent.agents.factory import get_agent_class
@@ -338,6 +341,8 @@ def _run_sync(
 
     environment_config = dict(config.get("environment") or {})
     environment_config.update(environment_overrides)
+    if environment_hooks is not None:
+        environment_hooks.before_environment(instance, environment_config, config)
     environment = make_dataset_env(instance, **environment_config)
     try:
         environment.setup_environment()
@@ -362,6 +367,7 @@ def _run_sync(
                 raise ValueError("prompt_prefix must be a string when configured")
             task = f"{prompt_prefix.rstrip()}\n\n--- Task ---\n{task}"
         agent = agent_cls(model, environment.env, **agent_config)
+        hook_info = environment_hooks.after_agent(environment, agent, instance) if environment_hooks is not None else {}
         if budget is not None:
             budget.install(model, environment.env)
         try:
@@ -377,9 +383,18 @@ def _run_sync(
         if status in _UNGRADABLE_AGENT_STATUSES:
             raise RuntimeError(f"{agent_type} rollout failed with status={status}: {str(result)[-500:]}")
         _notify_agent_finished(session, agent_status=status)
-        reward, test_output, reward_extra_info = environment.calculate_reward()
+        if reward_timeout:
+            reward, test_output, reward_extra_info = environment.calculate_reward(timeout=reward_timeout)
+        else:
+            reward, test_output, reward_extra_info = environment.calculate_reward()
+        raw_reward = float(reward)
+        if reward_binarize_threshold is not None:
+            # Rubric-graded sources score in [0, 1]; the recipe trains on pass/fail at a threshold.
+            reward = 1.0 if raw_reward >= float(reward_binarize_threshold) else 0.0
         reward_info = {
             **(reward_extra_info or {}),
+            **hook_info,
+            "raw_reward": raw_reward,
             "reward": float(reward),
             "finished": True,
             "agent_type": agent_type,
@@ -479,10 +494,18 @@ async def mimoagent_runner(
     if not session.base_url:
         raise ValueError(f"sample {sample_index} has no Uni-Agent gateway base_url")
 
-    config_path, selected_harness = _select_config_path(
-        sample_index=sample_index,
-        tools_kwargs=tools_kwargs,
-    )
+    fixed_config = runner_kwargs.pop("config_path", None)
+    if fixed_config:
+        # A route with its own harness config (e.g. General) instead of the Code harness mix.
+        config_path = Path(str(fixed_config)).expanduser()
+        if not config_path.is_absolute():
+            config_path = Path(__file__).resolve().parents[2] / config_path  # repo root
+        config_path, selected_harness = str(config_path), str(runner_kwargs.get("source") or config_path.stem)
+    else:
+        config_path, selected_harness = _select_config_path(
+            sample_index=sample_index,
+            tools_kwargs=tools_kwargs,
+        )
     config = _load_config(config_path)
     agent_overrides = dict(runner_kwargs.pop("agent_overrides", {}) or {})
     environment_overrides = dict(runner_kwargs.pop("environment_overrides", {}) or {})
@@ -490,6 +513,15 @@ async def mimoagent_runner(
     exec_budget_agent_types = runner_kwargs.pop("exec_budget_agent_types", None)
     exec_budget_probe_timeout = int(runner_kwargs.pop("exec_budget_probe_timeout", 30))
     include_task_in_reward_info = bool(runner_kwargs.pop("include_task_in_reward_info", False))
+    hooks_name = runner_kwargs.pop("environment_hooks", None)
+    reward_binarize_threshold = runner_kwargs.pop("reward_binarize_threshold", None)
+    reward_timeout = runner_kwargs.pop("reward_timeout", None)
+    source = runner_kwargs.pop("source", None)
+    environment_hooks = None
+    if hooks_name:
+        from recipes.general.uni_runner import get_hooks
+
+        environment_hooks = get_hooks(str(hooks_name))
     reward_info = await asyncio.to_thread(
         _run_sync,
         raw_prompt=raw_prompt,
@@ -502,7 +534,12 @@ async def mimoagent_runner(
         exec_budget_agent_types=frozenset(exec_budget_agent_types) if exec_budget_agent_types is not None else None,
         exec_budget_probe_timeout=exec_budget_probe_timeout,
         include_task_in_reward_info=include_task_in_reward_info,
+        environment_hooks=environment_hooks,
+        reward_binarize_threshold=float(reward_binarize_threshold) if reward_binarize_threshold is not None else None,
+        reward_timeout=float(reward_timeout) if reward_timeout else None,
     )
+    if source is not None:
+        reward_info["source"] = str(source)
     reward_info["selected_harness"] = selected_harness
     reward_info["tag_data_source_with_harness"] = os.getenv("MIXED_HARNESS_MODE", "prompt").strip().lower() in {
         "paired_validation",

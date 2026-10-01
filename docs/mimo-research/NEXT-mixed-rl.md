@@ -1,6 +1,6 @@
 # 다음 작업 설계: Code + General 혼합 학습과 Sample Mixer
 
-상태: 설계 (구현 전). 기준 브랜치 `mimo-fixes`. 리포트 6.2 (multi-tenant rollout, heterogeneous harnesses), 6.3 (Sample Mixer).
+상태: 1단계(General 러너 이식) 구현 완료, CPU 검증만. 2단계(Sample Mixer) 남음. 기준 브랜치 `mimo-fixes`. 리포트 6.2 (multi-tenant rollout, heterogeneous harnesses), 6.3 (Sample Mixer).
 
 ## 1. 지금 왜 못 섞는가
 
@@ -40,6 +40,20 @@ uni-agent는 `agent_runners`를 여러 개 받고 행의 `agent_name`으로 고�
 | 도구 실행 예산 | `env_actor` | Code 러너의 `_ExecBudget` 재사용, 소스별 `exec_budget_seconds` |
 | infra 실패 | `_failure_output` (is_infra 행) | uni-agent가 세션을 버림 → 배치에 없음 (그룹 크기 보정이 처리) |
 | `length_signals`, 턴 구간 | 에이전트 루프가 기록 | 트레이너 대체 경로 (원래 마스크 기준) |
+
+### 구현 (1단계)
+
+- `recipes/mixed/runner.py` `mixed_runner`: uni-agent에는 러너 하나. 인스턴스의 `dataset_type`으로 경로(`route_by_dataset_type`)를 고르고, 공통 `runner_kwargs` 위에 경로별 값을 덮어 MimoAgent 러너를 실행. 경로 이름은 `reward_info.source`. 매핑에 없는 `dataset_type`은 세션 실패
+- `recipes/code/mimoagent_runner.py`에 선택 인자: `config_path`(하니스 혼합 대신 고정 설정, 상대 경로는 저장소 기준), `environment_hooks`, `reward_binarize_threshold`(`raw_reward`도 기록), `reward_timeout`, `source`
+- `recipes/general/uni_runner.py` `GeneralHooks`: General 환경 등록, 필요 시 cc 도구 등록, `env_task_dir`를 `GA_TASK_ROOT` 기준으로, KUBECONFIG·DOCKER_REGISTRY·labels, MCP 도구 탐색 후 에이전트 도구 목록에 추가(캐시된 정의 갱신), 브리지를 sidecar로 복사. 모두 예산 게이트 설치 전
+- `config/agent/general/s3k-uni.yaml`: `s3k.yaml` + 게이트웨이용 `model` 블록
+- `recipes/mixed/config/mixed.yaml`: `train.yaml`을 상속. 러너·경로, General 예산 300초·벽시계 1200초(`trajectory_timeout_by_dataset`), 이진화 1.0, `gar.sources: [code]`
+- `recipes/mixed/run_mixed.sh`: `CODE_TRAIN_DATA`, `GENERAL_TRAIN_DATA`, `GA_*`를 받아 Code 실행 스크립트를 혼합 설정으로 실행. 판정기 키는 `GA_JUDGE_KEY_FILE` 권장
+- `train.yaml`의 `hydra.searchpath` 블록 제거 (실행 스크립트가 명령줄로 넘김; 주 설정에서만 허용되어 상속을 막았음)
+- `algorithm.gar.sources`: 지정한 소스의 그룹만 채점 (`gar/groups_other_source`)
+- 테스트: `tests/recipes/mixed/test_mixed_runner_on_cpu.py` (경로 선택·거부, 인자 덮기, General 훅으로 MCP 도구 등록·이진화·경로·쿠버네티스 설정, 설정 경로, 혼합 설정 합성과 시작 검사), GAR 소스 필터
+
+Sample Mixer 전까지는 데이터로더가 두 parquet을 이어 붙여 뽑으므로, 배치의 소스 비율은 데이터 크기를 따른다.
 
 검증이 필요한 것 (pod 필요): General 과제를 두 경로(GeneralAgentLoop, uni-agent 러너)로 같은 시드에서 돌려 보상 분포와 토큰 수가 같은지. 게이트웨이의 토큰 기록이 General의 `chat_delta` 처리와 같은 토큰열을 만드는지가 핵심.
 
