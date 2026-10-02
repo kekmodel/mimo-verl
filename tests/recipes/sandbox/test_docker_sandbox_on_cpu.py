@@ -221,6 +221,7 @@ def test_create_body_is_a_capped_labelled_keepalive(daemon, tmp_path, monkeypatc
     host = body["HostConfig"]
     assert host["NetworkMode"] == "none" and host["AutoRemove"] is True
     assert host["NanoCpus"] == 500_000_000 and host["Memory"] == 2 * 2**30 and host["PidsLimit"] == 4096
+    assert host["MemorySwap"] == host["Memory"] and "Init" not in host
     assert host["CpuShares"] == 512 and host["MemoryReservation"] == 2**30  # cpu_request 0.5, memory_request 1Gi
     labels = body["Labels"]
     assert labels["mimo.sandbox"] == "1" and labels["mimo.exp"] == "exp1" and labels["team"] == "rl"
@@ -228,6 +229,12 @@ def test_create_body_is_a_capped_labelled_keepalive(daemon, tmp_path, monkeypatc
     env.cleanup()
     assert env.container_id is None and not daemon.containers
     env.cleanup()  # idempotent
+
+    quick = _env(daemon, tmp_path)
+    quick.start()
+    quick.cleanup(wait=False)  # garbage-collection path: one removal, no polling
+    assert quick.container_id is None and not daemon.containers
+    assert not any(c[0] == "GET" and c[1].endswith("/json") for c in daemon.calls[-1:])
 
 
 def test_missing_image_is_pulled_with_registry_auth(daemon, tmp_path):
@@ -371,6 +378,30 @@ def test_quantities_and_image_names():
     assert docker_api.split_image("kcr.x:5000/a/b:tag") == ("kcr.x:5000/a/b", "tag")
     assert docker_api.split_image("kcr.x:5000/a/b") == ("kcr.x:5000/a/b", "latest")
     assert docker_api.split_image("format-code-task-1:latest") == ("format-code-task-1", "latest")
+    client = docker_api.DockerClient("unix:///x.sock")
+    assert client._path("/images/create", {"fromImage": "a/b@sha256:00", "tag": ""}) == (
+        "/v1.41/images/create?fromImage=a%2Fb%40sha256%3A00"
+    )
+
+
+def test_harness_environment_keys_are_all_understood():
+    """Every key of the Code harness yamls is a backend field, consumed by make_dataset_env, or
+    removed by sandbox/docker.yaml: nothing is warned about and dropped per rollout."""
+    from dataclasses import fields
+
+    import yaml
+
+    from recipes.sandbox.docker_env import DockerSandboxConfig
+
+    group = yaml.safe_load((REPO_ROOT / "recipes/code/config/sandbox/docker.yaml").read_text())
+    removed = {k for k, v in group.items() if v is None}
+    consumed = {"environment_class", "anti_hack_cleanup", "git_leak_prevention", "judge_agent", "reward_mode"}
+    consumed |= {"image_prefix"}
+    known = {f.name for f in fields(DockerSandboxConfig)} | consumed | removed
+    spec = yaml.safe_load((REPO_ROOT / "config/agent/code/mix-four-whitebox.yaml").read_text())
+    for harness in spec["harnesses"]:
+        env_keys = set(yaml.safe_load((REPO_ROOT / "config/agent/code" / harness["config"]).read_text())["environment"])
+        assert env_keys <= known, (harness["label"], env_keys - known)
 
 
 def test_null_environment_override_removes_the_harness_key(monkeypatch):

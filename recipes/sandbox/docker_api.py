@@ -123,7 +123,7 @@ class DockerClient:
     def _path(self, path: str, query: dict[str, Any] | None = None) -> str:
         full = f"/v{self.api_version}{path}"
         if query:
-            full += "?" + urllib.parse.urlencode({k: v for k, v in query.items() if v is not None})
+            full += "?" + urllib.parse.urlencode({k: v for k, v in query.items() if v not in (None, "")})
         return full
 
     def open(

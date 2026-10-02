@@ -180,6 +180,12 @@ except Exception as e:
     sys.exit(f'SANDBOX=docker: cannot reach the Docker daemon ({e}); start the training containers with -v /var/run/docker.sock:/var/run/docker.sock')
 print(f\"sandbox: Docker {v.get('Version')} (API {v.get('ApiVersion')})\", file=sys.stderr)
 " "${SANDBOX_DOCKER_HOST:-}"
+    # sandbox/docker.yaml reads SANDBOX_* where the config is resolved (a Ray actor), so the
+    # variables travel with the job's runtime env.
+    for sandbox_var in $(compgen -v SANDBOX_); do
+      [ "${sandbox_var}" = SANDBOX_OVERRIDES ] && continue
+      SANDBOX_OVERRIDES+=(+ray_kwargs.ray_init.runtime_env.env_vars.${sandbox_var}="'${!sandbox_var}'")
+    done
     if [ -n "${SANDBOX_REGISTRY_AUTH_FILE:-}" ] && [ ! -r "${SANDBOX_REGISTRY_AUTH_FILE}" ]; then
       echo "SANDBOX_REGISTRY_AUTH_FILE=${SANDBOX_REGISTRY_AUTH_FILE} is not readable" >&2
       exit 1
@@ -410,7 +416,7 @@ python3 "${SCRIPT_DIR}/validate_resolved_config.py" "${RESOLVED_CONFIG_PATH}" \
   --mamba-cache-size "${MAX_MAMBA_CACHE_SIZE}" \
   --mamba-scheduler "${SGLANG_MAMBA_SCHEDULER_STRATEGY}" \
   --entropy-coeff "${ENTROPY_COEFF:-0}" \
-  --filter-groups-enabled "$(printf '%s' "${FILTER_GROUPS_ENABLE:-False}" | tr '[:upper:]' '[:lower:]')" \
+  --filter-groups-enabled "$(printf '%s' "${FILTER_GROUPS_ENABLE:-True}" | tr '[:upper:]' '[:lower:]')" \
   --tool-call-error-penalty-enabled "$(printf '%s' "${TOOL_CALL_ERROR_PENALTY_ENABLE}" | tr '[:upper:]' '[:lower:]')" \
   --tool-call-error-penalty-strategy "${TOOL_CALL_ERROR_PENALTY_STRATEGY}" \
   --tool-call-error-penalty-value "${TOOL_CALL_ERROR_PENALTY_VALUE}" \

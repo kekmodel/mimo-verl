@@ -133,3 +133,10 @@ git submodule update --init third_party/mimoagent-osr third_party/uni_agent
 - 두 레시피 설정을 Hydra로 합성해 손실 키 일치 검사 통과, 한쪽만 바꾸면 막힘, PPO 방식으로 되돌리기 가능 확인
 - General env actor의 도구 시간 누적·동결(Ray 액터)과 두 레시피의 예산 경로는 실제 pod에서 돌려보지 않았음
 - **GPU 실행(액터 손실까지의 전체 스텝)과 실제 pod는 검증하지 않았음**
+
+## 실행 경로 수정 (2026-10-02)
+
+| 문제 | 수정 | 위치 |
+|---|---|---|
+| `run_train.sh`는 `algorithm.filter_groups.enable` 기본값을 `True`로 넘기는데, 검증기 인자 기본값은 `False` → `FILTER_GROUPS_ENABLE`을 따로 지정하지 않으면 preflight가 "refusing to launch"로 막힘 (원본 버그) | 검증기 기본값도 `True` (train.yaml과 일치) | `recipes/code/run_train.sh` |
+| Kubernetes 없는 클러스터에서 Code를 돌릴 방법이 없음 | Docker 샌드박스 백엔드 `SANDBOX=docker` ([sandbox-infra.md](sandbox-infra.md)) | `recipes/sandbox/` |

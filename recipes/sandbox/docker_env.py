@@ -106,7 +106,8 @@ class DockerSandboxConfig:
     auto_remove: bool = True
     """Remove the container when it exits (Docker ``AutoRemove``)."""
     init: bool = False
-    """Run Docker's init as PID 1 to reap zombies."""
+    """Run Docker's init as PID 1. Without it nothing reaps the orphans of commands killed by
+    ``timeout``, and their zombies count against ``pids_limit``."""
 
     docker_host: str | None = None
     """``unix:///var/run/docker.sock`` (default, or ``$DOCKER_HOST``) or ``tcp://host:port``."""
@@ -176,7 +177,7 @@ class DockerSandboxEnvironment:
                     "POST", f"/containers/{self.container_id}/start", ok=(204, 304), timeout=cfg.start_timeout
                 )
             except Exception:
-                self.cleanup()
+                self.cleanup(wait=False)
                 raise
 
     def _pull(self) -> None:
@@ -210,6 +211,7 @@ class DockerSandboxEnvironment:
             host["NanoCpus"] = int(cpus * 1e9)
         if (memory := parse_bytes(cfg.memory_limit)) > 0:
             host["Memory"] = memory
+            host["MemorySwap"] = memory  # no swap on top: a memory hog is OOM-killed, as on Kubernetes
         if (shares := parse_cpus(cfg.cpu_request)) > 0:
             host["CpuShares"] = max(2, int(shares * 1024))
         if (reservation := parse_bytes(cfg.memory_request)) > 0:
@@ -232,10 +234,20 @@ class DockerSandboxEnvironment:
             "HostConfig": host,
         }
 
-    def cleanup(self) -> None:
-        """Remove the container and wait until it is gone. Idempotent."""
+    def cleanup(self, wait: bool = True) -> None:
+        """Remove the container and wait until it is gone. Idempotent. ``wait=False`` sends one
+        removal and returns (garbage collection, failed starts); ``max_lifetime`` backs it up."""
         container = getattr(self, "container_id", None)
         if not container:
+            return
+        if not wait:
+            self.container_id = None
+            try:
+                self.client.request(
+                    "DELETE", f"/containers/{container}", query={"force": 1, "v": 1}, ok=(204, 404, 409), timeout=10
+                )
+            except (DockerAPIError, DockerTransportError) as e:
+                self.logger.warning("removing sandbox %s: %s", container[:12], e)
             return
         for attempt in range(5):
             try:
@@ -267,7 +279,7 @@ class DockerSandboxEnvironment:
 
     def __del__(self):
         try:
-            self.cleanup()
+            self.cleanup(wait=False)
         except Exception:  # noqa: BLE001 - interpreter teardown; max_lifetime is the backstop
             pass
 

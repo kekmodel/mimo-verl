@@ -74,6 +74,12 @@
   - run_train.sh는 시작할 때 데몬에 닿는지 확인하고, 망분리용 `MIMOAGENT_RG_PATH`/`MIMOAGENT_CODE_MODE_HOST_PATH`를 Ray 워커로 넘긴다.
 - 배치: 러너는 Ray 태스크(`dispatch_mode: ray_task`)라서 태스크가 도는 노드의 데몬에 샌드박스가 생긴다. 노드당 동시 롤아웃 수는 Ray CPU 수 ÷ `UNI_AGENT_RUNNER_TASK_NUM_CPUS`로 묶인다.
 
+알려진 한계:
+- PID 1이 `sh`라서 `timeout`으로 죽은 명령의 고아 프로세스가 회수되지 않는다. 이 좀비들이 `pids_limit`을 깎는다. `SANDBOX_INIT=true`(HostConfig.Init)로 해결되지만, HBM이 허용하는지 먼저 확인해야 한다.
+- `network_mode: none`이면 다음 두 경우가 조용히 실패한다.
+  - anti-hack 정리의 `pip install -e --no-deps`가 빌드 격리 때문에 setuptools를 받으려다 실패한다(`|| true`). 그러면 레포 밖에 설치된 사본이 남는다. 이미지에 빌드 백엔드가 이미 있으면 영향이 없다.
+  - base commit이 이미지에 없을 때의 `git fetch` 대체 경로. 이 경우 과제 설정이 실패해 infra로 빠진다.
+
 ## 5. 남은 일
 
 1. **대상 노드에서 확인**

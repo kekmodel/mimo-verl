@@ -19,6 +19,9 @@ pull_policy: ${oc.env:SANDBOX_PULL_POLICY,missing}
 # Docker config.json-style credentials for API pulls; the daemon ignores the node's docker login.
 registry_auth_file: ${oc.env:SANDBOX_REGISTRY_AUTH_FILE,null}
 pids_limit: ${oc.decode:${oc.env:SANDBOX_PIDS_LIMIT,4096}}
+# Docker's init as PID 1 reaps the orphans of timed-out commands (HostConfig.Init; check that
+# the daemon's authorization plugin allows it before turning it on).
+init: ${oc.decode:${oc.env:SANDBOX_INIT,false}}
 # Seconds before an abandoned sandbox exits on its own; above the session backstop + grading.
 max_lifetime: ${oc.decode:${oc.env:SANDBOX_MAX_LIFETIME,14400}}
 max_concurrent_starts: ${oc.decode:${oc.env:SANDBOX_MAX_CONCURRENT_STARTS,8}}
