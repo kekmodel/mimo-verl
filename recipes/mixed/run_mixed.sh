@@ -13,6 +13,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 : "${CODE_TRAIN_DATA:?set CODE_TRAIN_DATA to the Code training parquet}"
 : "${GENERAL_TRAIN_DATA:?set GENERAL_TRAIN_DATA to the General training parquet}"
+if [ "${SANDBOX:-kubernetes}" = "docker" ]; then
+  # General tasks run a main container plus a sidecar with the task's MCP servers; only the
+  # Kubernetes sidecar environment exists so far.
+  echo "SANDBOX=docker covers Code tasks only (recipes/code/run_train.sh); General needs the Kubernetes sidecar environment" >&2
+  exit 1
+fi
 : "${GA_TASK_ROOT:?set GA_TASK_ROOT to the open_source_env bundle root (General task dirs)}"
 : "${GA_JUDGE_URL:?set GA_JUDGE_URL to the General rubric judge (OpenAI-compatible base URL)}"
 if [ ! -d "${GA_TASK_ROOT}/envs" ]; then

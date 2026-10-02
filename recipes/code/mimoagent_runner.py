@@ -340,7 +340,13 @@ def _run_sync(
     from mimoagent.environments.utils import make_dataset_env
 
     environment_config = dict(config.get("environment") or {})
-    environment_config.update(environment_overrides)
+    # A null override removes the harness yaml's key (e.g. Kubernetes-only keys when the
+    # sandbox backend is swapped).
+    for key, value in environment_overrides.items():
+        if value is None:
+            environment_config.pop(key, None)
+        else:
+            environment_config[key] = value
     if environment_hooks is not None:
         environment_hooks.before_environment(instance, environment_config, config)
     environment = make_dataset_env(instance, **environment_config)

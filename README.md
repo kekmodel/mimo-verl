@@ -51,6 +51,13 @@
 > CPU 테스트만 검증했습니다 (`_compute_advantage`는 실제 TransferQueue 배치로 통합 테스트). GPU·실제 pod 실행은 아직 검증하지 않았습니다.
 >
 > **Code + General 혼합** (`recipes/mixed/run_mixed.sh`): General을 uni-agent 러너로 돌려 한 run에서 섞습니다. `CODE_TRAIN_DATA`, `GENERAL_TRAIN_DATA`, `GA_TASK_ROOT`, `GA_JUDGE_URL`, `GA_JUDGE_KEY_FILE`와 Code 실행 변수를 넣고 실행. 설계와 상태: [`docs/mimo-research/NEXT-mixed-rl.md`](docs/mimo-research/NEXT-mixed-rl.md). 배치마다 소스별 몫(Code 85 : General 15)을 채우는 Sample Mixer가 켜져 있습니다 (`trainer.v1.sampler.mixer`, 지표 `mixer/*`). CPU 검증만 했습니다.
+>
+> **Kubernetes 없이 Docker 샌드박스** (Code, `SANDBOX=docker`): 각 노드의 학습 컨테이너가 노드의 Docker 데몬 소켓을 쓰고, 롤아웃마다 그 옆에 형제 컨테이너를 띄웁니다 ([`recipes/sandbox/docker_env.py`](recipes/sandbox/docker_env.py)). docker CLI도 바인드 마운트도 쓰지 않습니다 (API를 소켓으로 직접 호출, 파일은 tar로 전송). Kubernetes 백엔드와 같은 실행 계약(`timeout N` → rc 124, `reason`, `TransportError`)을 따릅니다.
+> - 모든 노드의 학습 컨테이너를 `-v /var/run/docker.sock:/var/run/docker.sock`로 띄웁니다. 러너 태스크가 도는 노드에 샌드박스가 생기고, 노드당 동시 롤아웃 수는 Ray CPU 수 ÷ `UNI_AGENT_RUNNER_TASK_NUM_CPUS`로 묶입니다.
+> - 설정 (`recipes/code/config/sandbox/docker.yaml`): `SANDBOX_IMAGE_PREFIX`(과제 이미지 앞에 붙는 레지스트리 경로), `SANDBOX_NETWORK`(기본 `none`), `SANDBOX_PULL_POLICY`(`missing`|`never`|`always`), `SANDBOX_REGISTRY_AUTH_FILE`(API pull은 노드의 `docker login`을 쓰지 않으므로 `config.json` 형식 자격 증명 파일; 미리 받아 둔 노드면 불필요), `SANDBOX_MAX_LIFETIME`(기본 14400초 뒤 스스로 종료·삭제), `SANDBOX_MAX_CONCURRENT_STARTS`/`PULLS`(노드당 동시 생성·pull, 기본 8/2), `SANDBOX_PIDS_LIMIT`. CPU·메모리 상한은 하네스 yaml의 `cpu_limit`/`memory_limit`(기본 4 / 8Gi).
+> - 샌드박스에는 라벨 `mimo.sandbox=1`, `mimo.exp`, `mimo.instance`, `mimo.owner`가 붙고, 정리는 이 라벨이 붙은 것만 합니다: `python -m recipes.sandbox.reap --exp <EXP_NAME> --dry-run`.
+> - 망분리 환경: ripgrep과 Codex code-mode host를 GitHub에서 받지 못하므로 공유 스토리지의 사본을 `MIMOAGENT_RG_PATH`, `MIMOAGENT_CODE_MODE_HOST_PATH`로 지정합니다 (run_train.sh가 Ray 워커로 넘김).
+> - General(메인 + MCP 사이드카)은 아직 Kubernetes 전용이라 `run_mixed.sh`는 `SANDBOX=docker`를 거부합니다.
 
 Agentic RL training code for MiMo. The detailed training recipe can be found in Section 7 of our report [MiMo-V2.6: Scaling Reinforcement Learning Towards
 Self-Improvement](https://huggingface.co/XiaomiMiMo/MiMo-V2.6-Pro-RL/blob/main/MiMo_V2_6_technical_report.pdf).

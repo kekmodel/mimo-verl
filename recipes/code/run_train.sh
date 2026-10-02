@@ -161,6 +161,33 @@ if [ "${GAR_ENABLE}" = "true" ]; then
   esac
 fi
 
+# Task sandboxes: kubernetes (pods; KUBECONFIG) or docker (sibling containers on each node's
+# daemon through a mounted /var/run/docker.sock; recipes/code/config/sandbox/docker.yaml and its
+# SANDBOX_* variables).
+SANDBOX="${SANDBOX:-kubernetes}"
+SANDBOX_OVERRIDES=()
+case "${SANDBOX}" in
+  kubernetes) ;;
+  docker)
+    SANDBOX_OVERRIDES+=(+sandbox=docker)
+    # The driver's node must reach its daemon; every node's container needs the same mount.
+    PYTHONPATH="${PYTHONPATH}" python3 -c "
+import sys
+from recipes.sandbox.docker_api import DockerClient
+try:
+    v = DockerClient(sys.argv[1] or None).version()
+except Exception as e:
+    sys.exit(f'SANDBOX=docker: cannot reach the Docker daemon ({e}); start the training containers with -v /var/run/docker.sock:/var/run/docker.sock')
+print(f\"sandbox: Docker {v.get('Version')} (API {v.get('ApiVersion')})\", file=sys.stderr)
+" "${SANDBOX_DOCKER_HOST:-}"
+    if [ -n "${SANDBOX_REGISTRY_AUTH_FILE:-}" ] && [ ! -r "${SANDBOX_REGISTRY_AUTH_FILE}" ]; then
+      echo "SANDBOX_REGISTRY_AUTH_FILE=${SANDBOX_REGISTRY_AUTH_FILE} is not readable" >&2
+      exit 1
+    fi
+    ;;
+  *) echo "SANDBOX must be kubernetes or docker, got ${SANDBOX}" >&2; exit 1 ;;
+esac
+
 if [ "${SKIP_CLUSTER_CHECK:-0}" != "1" ]; then
   IFS=: read -r -a PYTHONPATH_ENTRIES <<< "${PYTHONPATH}"
   PRECHECK_PYTHONPATH_ARGS=()
@@ -206,6 +233,11 @@ RAY_ENV=(
   +ray_kwargs.ray_init.runtime_env.env_vars.TRAJECTORY_TIMEOUT="'${TRAJECTORY_TIMEOUT:-7200}'"
   +ray_kwargs.ray_init.runtime_env.env_vars.EXEC_BUDGET_SECONDS="'${EXEC_BUDGET_SECONDS:-3000}'"
 )
+# Offline nodes: the harness tools fetch ripgrep and the Codex code-mode host from GitHub on
+# first use; point these at copies on shared storage (or at a mirror URL) instead.
+for offline_var in MIMOAGENT_RG_PATH MIMOAGENT_RG_URL MIMOAGENT_CODE_MODE_HOST_PATH MIMOAGENT_CODE_MODE_HOST_URL; do
+  [ -n "${!offline_var:-}" ] && RAY_ENV+=(+ray_kwargs.ray_init.runtime_env.env_vars.${offline_var}="${!offline_var}")
+done
 [ -n "${WORKER_LD}" ] && RAY_ENV+=(
   +ray_kwargs.ray_init.runtime_env.env_vars.LD_LIBRARY_PATH="'${WORKER_LD}'"
 )
@@ -353,6 +385,7 @@ MAIN_CMD=(
   actor_rollout_ref.rollout.custom.agent_framework.agent_runners.mimoagent.runner_kwargs.include_task_in_reward_info="${GAR_ENABLE}" \
   "${RAY_ENV[@]}" \
   "${OPTIONAL_OVERRIDES[@]}" \
+  "${SANDBOX_OVERRIDES[@]}" \
   "$@"
 )
 

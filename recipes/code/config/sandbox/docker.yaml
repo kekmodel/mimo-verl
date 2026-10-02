@@ -1,0 +1,25 @@
+# @package actor_rollout_ref.rollout.custom.agent_framework.agent_runners.mimoagent.runner_kwargs.environment_overrides
+# Task sandboxes as sibling containers on each node's Docker daemon instead of Kubernetes pods
+# (recipes/sandbox/docker_env.py). Selected by SANDBOX=docker in run_train.sh (+sandbox=docker).
+# Every node's training container must be started with
+#   -v /var/run/docker.sock:/var/run/docker.sock
+# because a rollout's sandbox is created on the node its runner task runs on.
+#
+# These keys override each harness yaml's `environment` block; a null removes the yaml's key
+# (the backend default applies).
+environment_class: recipes.sandbox.docker_env.DockerSandboxEnvironment
+node_selector: null              # Kubernetes-only key of the harness yamls
+# Registry path prepended to every task image (e.g. kcr.example.com/group/mimo-tasks).
+image_prefix: ${oc.env:SANDBOX_IMAGE_PREFIX,null}
+docker_host: ${oc.env:SANDBOX_DOCKER_HOST,null}
+# none: no network inside the sandbox (prebuilt code-task images do not need one).
+network_mode: ${oc.env:SANDBOX_NETWORK,none}
+# missing: pull on first use; never: nodes are pre-pulled and a missing image fails the rollout.
+pull_policy: ${oc.env:SANDBOX_PULL_POLICY,missing}
+# Docker config.json-style credentials for API pulls; the daemon ignores the node's docker login.
+registry_auth_file: ${oc.env:SANDBOX_REGISTRY_AUTH_FILE,null}
+pids_limit: ${oc.decode:${oc.env:SANDBOX_PIDS_LIMIT,4096}}
+# Seconds before an abandoned sandbox exits on its own; above the session backstop + grading.
+max_lifetime: ${oc.decode:${oc.env:SANDBOX_MAX_LIFETIME,14400}}
+max_concurrent_starts: ${oc.decode:${oc.env:SANDBOX_MAX_CONCURRENT_STARTS,8}}
+max_concurrent_pulls: ${oc.decode:${oc.env:SANDBOX_MAX_CONCURRENT_PULLS,2}}
