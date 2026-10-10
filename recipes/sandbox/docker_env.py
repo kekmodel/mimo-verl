@@ -195,6 +195,10 @@ class DockerSandboxEnvironment:
     def _create_body(self) -> dict[str, Any]:
         cfg = self.config
         env = {k: v for k in cfg.forward_env if (v := os.environ.get(k)) is not None}
+        # Sandboxes share GPU training nodes. With nvidia as the daemon's default runtime, an image
+        # (or a forwarded runner variable) carrying NVIDIA_VISIBLE_DEVICES=all would hand model-written
+        # code the training GPUs; "void" makes the runtime attach none. Only an explicit ``env`` overrides.
+        env["NVIDIA_VISIBLE_DEVICES"] = "void"
         env.update({k: str(v) for k, v in cfg.env.items()})
         labels = {
             "mimo.sandbox": "1",

@@ -223,6 +223,7 @@ def test_create_body_is_a_capped_labelled_keepalive(daemon, tmp_path, monkeypatc
     assert host["NanoCpus"] == 500_000_000 and host["Memory"] == 2 * 2**30 and host["PidsLimit"] == 4096
     assert host["MemorySwap"] == host["Memory"] and "Init" not in host
     assert host["CpuShares"] == 512 and host["MemoryReservation"] == 2**30  # cpu_request 0.5, memory_request 1Gi
+    assert "NVIDIA_VISIBLE_DEVICES=void" in body["Env"]  # no training GPUs in the sandbox
     labels = body["Labels"]
     assert labels["mimo.sandbox"] == "1" and labels["mimo.exp"] == "exp1" and labels["team"] == "rl"
     assert labels["mimo.instance"] == "repo__issue-1" and created["name"].startswith("mimo-repo__issue-1-")
@@ -235,6 +236,18 @@ def test_create_body_is_a_capped_labelled_keepalive(daemon, tmp_path, monkeypatc
     quick.cleanup(wait=False)  # garbage-collection path: one removal, no polling
     assert quick.container_id is None and not daemon.containers
     assert not any(c[0] == "GET" and c[1].endswith("/json") for c in daemon.calls[-1:])
+
+
+def test_gpus_stay_hidden_unless_env_asks(daemon, tmp_path, monkeypatch):
+    monkeypatch.setenv("NVIDIA_VISIBLE_DEVICES", "all")  # the runner itself sees GPUs
+    env = _env(daemon, tmp_path, forward_env=["NVIDIA_VISIBLE_DEVICES"])
+    env.start()
+    assert "NVIDIA_VISIBLE_DEVICES=void" in next(iter(daemon.containers.values()))["body"]["Env"]
+    env.cleanup()
+    env = _env(daemon, tmp_path, env={"NVIDIA_VISIBLE_DEVICES": "0"})
+    env.start()
+    assert "NVIDIA_VISIBLE_DEVICES=0" in next(iter(daemon.containers.values()))["body"]["Env"]
+    env.cleanup()
 
 
 def test_missing_image_is_pulled_with_registry_auth(daemon, tmp_path):

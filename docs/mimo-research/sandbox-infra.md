@@ -65,6 +65,7 @@
     - 이미지의 ENTRYPOINT를 `sh -c "sleep <max_lifetime>"`으로 교체한다. 수명이 끝나면 `AutoRemove`로 스스로 사라진다.
     - `NetworkMode=none`, `NanoCpus`/`Memory`/`CpuShares`/`MemoryReservation`/`PidsLimit`를 건다. 값은 하네스 yaml의 Kubernetes 이름(`cpu_limit` 등)을 그대로 받는다.
     - 라벨: `mimo.sandbox`, `mimo.exp`, `mimo.instance`, `mimo.owner`.
+    - `NVIDIA_VISIBLE_DEVICES=void`를 항상 넣는다. GPU 학습 노드의 기본 런타임이 nvidia여도 샌드박스에는 GPU가 붙지 않는다(이미지나 넘겨받은 러너 변수보다 우선하고, `env`에 직접 적을 때만 바뀐다).
   - 노드당 동시 생성·pull 수를 `flock` 슬롯으로 제한한다(같은 노드의 러너 프로세스가 공유하고, 죽은 프로세스의 슬롯은 자동으로 풀린다).
   - 정리는 동기식이며 404가 날 때까지 확인한다.
 - `reap.py`: 라벨 `mimo.sandbox=1`이 붙은 것만 지운다(공유 데몬이므로).
